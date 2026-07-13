@@ -1,11 +1,15 @@
 import { WorkerPool } from '../services/pipeline-queue'
+import { resolvePipelineWorkerCount } from '../utils/pipeline-config'
 
 export default defineNitroPlugin(async (_nitroApp) => {
   const _logger = logger.dynamic('queue')
 
+  const workerCount = resolvePipelineWorkerCount()
+  _logger.info(`Pipeline worker count: ${workerCount}`)
+
   const workerPool = new WorkerPool(
     {
-      workerCount: 5,
+      workerCount,
       intervalMs: 1500,
       intervalOffset: 300,
       enableLoadBalancing: true,
