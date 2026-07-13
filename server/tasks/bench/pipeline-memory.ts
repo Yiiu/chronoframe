@@ -1,6 +1,6 @@
 import { readdir, readFile, mkdir, writeFile } from 'node:fs/promises'
 import { resolve, join, extname } from 'node:path'
-import { inArray } from 'drizzle-orm'
+import { and, inArray, like } from 'drizzle-orm'
 import { getStorageManager } from '~~/server/plugins/3.storage'
 import { MemSampler, formatMb } from '~~/server/utils/mem-sampler'
 import {
@@ -41,6 +41,10 @@ export default defineTask({
     const outDir = resolve('data/bench')
     await mkdir(outDir, { recursive: true })
 
+    log.warn(
+      'Bench uploads corpus under bench/ and photo IDs derive from the filename basename. Run against a NON-PRODUCTION database and use uniquely-named corpus files to avoid overwriting real photos.',
+    )
+
     const db = useDB()
     const storage = getStorageManager().getProvider()
     const pool = globalThis.__workerPool
@@ -65,7 +69,11 @@ export default defineTask({
 
     // 2) 清理上一轮同语料的残留（保证可复现）
     const ids = items.map((i) => i.photoId)
-    await db.delete(tables.photos).where(inArray(tables.photos.id, ids))
+    await db
+      .delete(tables.photos)
+      .where(
+        and(inArray(tables.photos.id, ids), like(tables.photos.storageKey, 'bench/%')),
+      )
 
     // 3) 开始采样并入队
     const sampler = new MemSampler(200)
@@ -86,7 +94,10 @@ export default defineTask({
         .select({ id: tables.pipelineQueue.id, status: tables.pipelineQueue.status })
         .from(tables.pipelineQueue)
         .where(inArray(tables.pipelineQueue.id, taskIds))
-      return rows.every((r) => r.status === 'completed' || r.status === 'failed')
+      return (
+        rows.length === taskIds.length &&
+        rows.every((r) => r.status === 'completed' || r.status === 'failed')
+      )
     }
     const timeoutMs = Number.parseInt(process.env.CFRAME_BENCH_TIMEOUT_MS || '600000', 10)
     while (!(await isDone())) {
