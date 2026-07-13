@@ -319,8 +319,12 @@ export class QueueManager {
           // STEP 3: 生成缩略图
           await this.updateTaskStage(taskId, 'thumbnail')
           this.logger.info(`[${taskId}:in-stage] thumbnail generation`)
-          const { thumbnailBuffer, thumbnailHash } =
-            await generateThumbnailAndHash(imageBuffer, this.logger)
+          const thumbResult = await generateThumbnailAndHash(
+            imageBuffer,
+            this.logger,
+          )
+          let thumbnailBuffer: Buffer | null = thumbResult.thumbnailBuffer
+          const thumbnailHash = thumbResult.thumbnailHash
 
           // 上传缩略图到存储服务
           const thumbnailObject = await new Promise<any>((resolve, reject) => {
@@ -337,6 +341,7 @@ export class QueueManager {
               }
             })
           })
+          thumbnailBuffer = null // 缩略图已上传，释放
 
           // STEP 4: 提取 EXIF 数据
           await this.updateTaskStage(taskId, 'exif')
@@ -346,6 +351,8 @@ export class QueueManager {
             imageBuffers.raw,
             this.logger,
           )
+          // imageBuffer / processed 在 EXIF 后不再需要；raw 仍用于 motion photo
+          ;(imageBuffers as { processed: Buffer | null }).processed = null
           const systemAutoEraseLocationOnUpload =
             (await settingsManager.get<boolean>(
               'privacy',
