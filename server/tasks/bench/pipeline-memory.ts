@@ -84,7 +84,9 @@ export default defineTask({
     for (const it of items) {
       const id = await pool.addTask(
         { type: 'photo', storageKey: it.storageKey },
-        { priority: 5, maxAttempts: 1 },
+        // maxAttempts 3 matches the real pipeline default; avoids counting
+        // transient FS/AV read races (Windows) as permanent failures.
+        { priority: 5, maxAttempts: 3 },
       )
       taskIds.push(id)
     }
