@@ -6,6 +6,18 @@ import sharp from 'sharp'
 import { withRetry, RetryPresets, RetryConditions } from '../../utils/retry'
 import { resolveMaxInputPixels } from '../../utils/pipeline-config'
 
+// 全局串行化 HEIC 转换：一次只允许一个，降低并发峰值内存。仅影响吞吐，不改输出。
+let heicChain: Promise<unknown> = Promise.resolve()
+const runExclusiveHeic = <T>(fn: () => Promise<T>): Promise<T> => {
+  const run = heicChain.then(fn, fn)
+  // 无论成功失败都不阻断后续
+  heicChain = run.then(
+    () => undefined,
+    () => undefined,
+  )
+  return run
+}
+
 export interface ProcessedImageData {
   sharpInst: sharp.Sharp
   imageBuffer: Buffer
@@ -143,37 +155,39 @@ const getMetadataWithSharp = async (
 }
 
 export const convertHeicToJpeg = async (heicBuffer: Buffer) => {
-  return await withRetry(
-    async () => {
-      // 检查文件大小，如果太大则降低质量
-      const fileSizeMB = heicBuffer.length / (1024 * 1024)
-      const quality = fileSizeMB > 10 ? 0.8 : 0.95
+  return await runExclusiveHeic(async () =>
+    withRetry(
+      async () => {
+        // 检查文件大小，如果太大则降低质量
+        const fileSizeMB = heicBuffer.length / (1024 * 1024)
+        const quality = fileSizeMB > 10 ? 0.8 : 0.95
 
-      const jpegBuffer = await heicConvert({
-        // @ts-expect-error idk why there is a type error here
-        buffer: heicBuffer,
-        format: 'JPEG',
-        quality,
-      })
+        const jpegBuffer = await heicConvert({
+          // @ts-expect-error idk why there is a type error here
+          buffer: heicBuffer,
+          format: 'JPEG',
+          quality,
+        })
 
-      logger.image.info(
-        `Successfully converted HEIC to JPEG (quality: ${quality})`,
-      )
-      return Buffer.from(jpegBuffer as ArrayBuffer)
-    },
-    {
-      ...RetryPresets.slow, // HEIC 转换是重量级操作
-      timeout: 30000,
-      retryCondition: (error) => {
-        // HEIC 转换错误通常是资源相关的
-        return (
-          RetryConditions.resourceErrors(error) ||
-          error.message.includes('memory') ||
-          error.message.includes('timeout')
+        logger.image.info(
+          `Successfully converted HEIC to JPEG (quality: ${quality})`,
         )
+        return Buffer.from(jpegBuffer as ArrayBuffer)
       },
-    },
-    logger.image,
+      {
+        ...RetryPresets.slow, // HEIC 转换是重量级操作
+        timeout: 30000,
+        retryCondition: (error) => {
+          // HEIC 转换错误通常是资源相关的
+          return (
+            RetryConditions.resourceErrors(error) ||
+            error.message.includes('memory') ||
+            error.message.includes('timeout')
+          )
+        },
+      },
+      logger.image,
+    ),
   )
 }
 
