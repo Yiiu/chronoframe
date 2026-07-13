@@ -4,6 +4,7 @@ import heicConvert from 'heic-convert'
 import { getStorageManager } from '~~/server/plugins/3.storage'
 import sharp from 'sharp'
 import { withRetry, RetryPresets, RetryConditions } from '../../utils/retry'
+import { resolveMaxInputPixels } from '../../utils/pipeline-config'
 
 export interface ProcessedImageData {
   sharpInst: sharp.Sharp
@@ -305,8 +306,8 @@ export const processImageMetadataAndSharp = async (
   s3key: string,
 ): Promise<ProcessedImageData | null> => {
   try {
-    // Disable input pixel limit to avoid failures on very large images
-    let sharpInst = sharp(buffer, { limitInputPixels: false })
+    // Cap decode pixels to avoid OOM on pathological images (normal photos unaffected)
+    let sharpInst = sharp(buffer, { limitInputPixels: resolveMaxInputPixels() })
     let convertedBuffer = buffer
 
     if (isBitmap(buffer)) {
