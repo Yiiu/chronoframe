@@ -4,6 +4,7 @@ import {
   text,
   integer,
   real,
+  index,
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core'
 import type { NeededExif } from '~~/shared/types/photo'
@@ -67,7 +68,12 @@ export const photos = sqliteTable('photos', {
   isLivePhoto: integer('is_live_photo').default(0).notNull(),
   livePhotoVideoUrl: text('live_photo_video_url'),
   livePhotoVideoKey: text('live_photo_video_key'),
-})
+}, (t) => [
+  // 画廊/统计按拍摄时间排序与范围过滤（消除全表扫描 + 临时排序）
+  index('idx_photos_date_taken').on(t.dateTaken),
+  // LivePhoto 配对、EXIF reindex 等按 storageKey 精确查找
+  index('idx_photos_storage_key').on(t.storageKey),
+])
 
 export const pipelineQueue = sqliteTable('pipeline_queue', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -161,7 +167,11 @@ export const albumPhotos = sqliteTable('album_photos', {
   addedAt: integer('added_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
-})
+}, (t) => [
+  // 相册↔照片关联查询（隐藏相册过滤、按相册取照片、级联删除）
+  index('idx_album_photos_album_id').on(t.albumId),
+  index('idx_album_photos_photo_id').on(t.photoId),
+])
 
 export const settings = sqliteTable(
   'settings',
