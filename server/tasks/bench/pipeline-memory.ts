@@ -17,11 +17,12 @@ const runSelfChecks = (log: any) => {
   const assert = (cond: boolean, msg: string) => {
     if (!cond) throw new Error(`Self-check failed: ${msg}`)
   }
+  // 注意：用 '' 而非 undefined，避免读到默认参数里的 process.env（会随运行环境变化）
   assert(resolvePipelineWorkerCount('5') === 5, 'workerCount "5" -> 5')
-  assert(resolvePipelineWorkerCount(undefined) === 2, 'workerCount undefined -> 2')
+  assert(resolvePipelineWorkerCount('') === 2, 'workerCount "" -> 2')
   assert(resolvePipelineWorkerCount('0') === 2, 'workerCount "0" -> 2')
   assert(resolvePipelineWorkerCount('999') === 16, 'workerCount "999" -> 16')
-  assert(resolveMaxInputPixels(undefined) === 500_000_000, 'maxPixels undefined')
+  assert(resolveMaxInputPixels('') === 500_000_000, 'maxPixels "" -> default')
   assert(resolveMaxInputPixels('abc') === 500_000_000, 'maxPixels "abc"')
   assert(resolveMaxInputPixels('100') === 100, 'maxPixels "100"')
   log.success('Self-checks passed')
