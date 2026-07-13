@@ -23,7 +23,8 @@
 - 1.5GB 限制下批量处理: <待测>
 
 ## 调查发现
-- sharp HEIF 原生支持: <待 Task 8 调查>
+- sharp HEIF 原生支持: **否**（sharp 0.34.5 / libvips 8.17.3：可读 HEIF 元数据 3008x4000，但解码像素报 "Support for this compression format has not been built in" —— 预编译包不含 HEVC/libde265 解码器）。
+- 结论：HEIC 必须继续走 `heic-convert`（JS）。因此 Task 8 采用"全局串行化 HEIC 转换"降并发峰值，而非替换解码器（也避免改变输出）。
 
 ## 决策（待 Task 9 补全）
 - [ ] 达标：处理增量 + 生产基线落入 1–2GB 可承受范围，无 OOM、无功能回归 → 收工，Rust 方案 A 归档为未来可选项。
