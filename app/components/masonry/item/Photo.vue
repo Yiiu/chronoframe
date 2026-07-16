@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { formatCameraInfo } from '~/utils/camera'
+import { resolveAspectRatio } from '~/utils/aspectRatio'
 import { motion, useDomRef } from 'motion-v'
 
 interface Props {
@@ -41,20 +42,13 @@ const intersectionObserverRef = ref<IntersectionObserver | null>(null)
 
 const processingState = getProcessingState(props.photo.id)
 
-const aspectRatio = computed(() => {
-  // Priority 1: Use aspectRatio from photo data if available
-  if (props.photo.aspectRatio) {
-    return props.photo.aspectRatio
-  }
-
-  // Priority 2: Calculate from width and height if available
-  if (props.photo.width && props.photo.height) {
-    return props.photo.height / props.photo.width
-  }
-
-  // Fallback: Default aspect ratio
-  return 1.2
-})
+const aspectRatio = computed(() =>
+  resolveAspectRatio(
+    props.photo.aspectRatio,
+    props.photo.width,
+    props.photo.height,
+  ),
+)
 
 // Show info overlay only when not playing video or video has finished
 const shouldShowInfoOverlay = computed(() => {
