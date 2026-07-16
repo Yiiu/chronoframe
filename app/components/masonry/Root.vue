@@ -389,7 +389,7 @@ onMounted(() => {
 
   nextTick(() => {
     updateScrollMetrics()
-    if (currentMasonryIndex.value >= 0) {
+    if (isViewerOpen.value && currentMasonryIndex.value >= 0) {
       scrollToPhoto(currentMasonryIndex.value)
     }
   })
