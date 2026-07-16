@@ -549,13 +549,15 @@ const swiperModules = [Navigation, Keyboard, Virtual]
   <Teleport to="body">
     <!-- 背景层 -->
     <AnimatePresence>
+      <!-- backdrop-filter 的模糊不随 opacity 渐变（Chrome 中首帧即全强度），
+           必须显式动画 blur 半径本身，否则打开瞬间会闪一下乳白色的全屏模糊 -->
       <motion.div
         v-if="isOpen"
-        :initial="{ opacity: 0 }"
-        :animate="{ opacity: 1 }"
-        :exit="{ opacity: 0 }"
+        :initial="{ opacity: 0, backdropFilter: 'blur(0px)' }"
+        :animate="{ opacity: 1, backdropFilter: 'blur(40px)' }"
+        :exit="{ opacity: 0, backdropFilter: 'blur(0px)' }"
         :transition="{ duration: 0.3 }"
-        class="fixed inset-0 bg-white/50 dark:bg-black/50 backdrop-blur-2xl z-50"
+        class="fixed inset-0 bg-white/50 dark:bg-black/50 z-50"
         @click="emit('close')"
       />
     </AnimatePresence>
