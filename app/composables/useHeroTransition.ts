@@ -253,7 +253,34 @@ export function useHeroTransition(options: Options) {
     overlaySrc.value = dest.thumbUrl
     showOverlayAt(el, from) // display:block + opacity:1 synchronously
     hideEl(dest.el) // hide the destination thumbnail during the return flight
-    flyTo(from, dest.rect, finishExit)
+    flyTo(from, dest.rect, () => {
+      // Landed. Restore the grid thumbnail UNDER the still-opaque overlay and
+      // give the compositor a couple frames to re-rasterize it — a thumbnail
+      // that spent the flight visibility:hidden can repaint a frame or two
+      // late, which reads as a black flash if the overlay vanishes instantly.
+      restoreEl()
+      lastTarget = null
+      viewer.setHeroActive(false)
+      viewer.setHeroCovering(false)
+      viewer.clearPendingHero()
+      dispatch('EXIT_DONE')
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          // Re-opened while landing → the new entry owns the overlay now.
+          if (state.value !== 'idle') return
+          fadeHandle?.stop()
+          fadeHandle = animate(
+            el,
+            { opacity: [1, 0] },
+            { duration: CROSSFADE_MS / 1000 },
+          ) as AnimHandle
+          fadeHandle.then(() => {
+            fadeHandle = null
+            hideOverlay()
+          })
+        }),
+      )
+    })
   }
 
   return {
