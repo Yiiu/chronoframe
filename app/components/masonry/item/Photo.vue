@@ -520,18 +520,14 @@ onUnmounted(() => {
       />
 
       <!-- Photo info overlay (bottom) -->
-      <motion.div
+      <div
         v-show="shouldShowInfoOverlay"
-        class="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/60 to-transparent p-3"
-        :initial="{ y: '100%', opacity: 0 }"
-        :animate="{
-          y: shouldShowInfoOverlay && isHovering && !isMobile ? 0 : '100%',
-          opacity: shouldShowInfoOverlay && isHovering && !isMobile ? 1 : 0,
-        }"
-        :transition="{
-          duration: 0.3,
-          ease: [0.25, 0.1, 0.25, 1],
-        }"
+        class="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/60 to-transparent p-3 transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]"
+        :class="
+          shouldShowInfoOverlay && isHovering && !isMobile
+            ? 'translate-y-0 opacity-100'
+            : 'translate-y-full opacity-0'
+        "
       >
         <div class="text-white flex flex-col gap-1">
           <div class="flex flex-col">
@@ -643,7 +639,7 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   </div>
 </template>

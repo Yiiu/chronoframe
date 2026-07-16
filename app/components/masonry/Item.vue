@@ -61,17 +61,14 @@ const itemVariants = {
 
 <template>
   <motion.div
+    v-if="shouldAnimate"
     :key="itemKey"
     :data-photo-id="photo.id"
-    :variants="shouldAnimate ? itemVariants : undefined"
-    :initial="shouldAnimate ? 'hidden' : 'visible'"
-    :animate="'visible'"
+    :variants="itemVariants"
+    initial="hidden"
+    animate="visible"
     class="w-full"
-    @animation-complete="
-      () => {
-        if (shouldAnimate) emit('animationComplete')
-      }
-    "
+    @animation-complete="emit('animationComplete')"
   >
     <MasonryItemPhoto
       :photo="photo"
@@ -80,6 +77,19 @@ const itemVariants = {
       @open-viewer="emit('openViewer', $event)"
     />
   </motion.div>
+  <div
+    v-else
+    :key="itemKey"
+    :data-photo-id="photo.id"
+    class="w-full"
+  >
+    <MasonryItemPhoto
+      :photo="photo"
+      :index="index"
+      :is-visible="isVisible"
+      @open-viewer="emit('openViewer', $event)"
+    />
+  </div>
 </template>
 
 <style scoped></style>
