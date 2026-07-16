@@ -17,6 +17,7 @@ const emit = defineEmits<{
 }>()
 
 const { gtag } = useGtag()
+const { setPendingHero } = useViewerState()
 
 const isLoading = ref(true)
 const photoRef = ref<HTMLElement>()
@@ -291,6 +292,18 @@ const handleClick = (event: Event) => {
     photo_title: props.photo.title || 'Untitled',
     has_live_photo: props.photo.isLivePhoto ? 'yes' : 'no',
   })
+
+  // Capture the source thumbnail rect synchronously — the grid does not move
+  // when the viewer overlays it, but click-time capture is immune to any async
+  // reflow between router.push and the overlay mounting.
+  const el = photoRef.value
+  if (el && props.photo.thumbnailUrl) {
+    const r = el.getBoundingClientRect()
+    setPendingHero({
+      rect: { left: r.left, top: r.top, width: r.width, height: r.height },
+      thumbUrl: props.photo.thumbnailUrl,
+    })
+  }
 
   // On desktop, always allow opening the viewer
   // Otherwise, open the viewer
