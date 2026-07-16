@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { motion } from 'motion-v'
+import { computeMasonryLayout } from '~/utils/masonryLayout'
+import { resolveAspectRatio } from '~/utils/aspectRatio'
 interface Props {
   photos: Photo[]
   columns?: number | 'auto'
@@ -36,7 +38,6 @@ const { batchProcessLivePhotos } = useLivePhotoProcessor()
 const processedBatch = ref(new Set<string>())
 const headerRef = ref<HTMLElement>()
 const headerHeight = ref(0)
-const headerColumnWidth = ref(0)
 
 const columnWidth = computed(() => {
   if (props.columns === 'auto') {
@@ -76,26 +77,12 @@ useResizeObserver(headerRef, (entries) => {
   }
 })
 
-const updateHeaderWidth = () => {
-  if (isMobile.value) {
-    headerColumnWidth.value = 0
-    return
+const wallWidth = ref(0)
+useResizeObserver(masonryWrapper, (entries) => {
+  const entry = entries[0]
+  if (entry) {
+    wallWidth.value = entry.contentRect.width
   }
-
-  const columnElement = masonryWrapper.value?.querySelector<HTMLElement>(
-    '.masonry-wall .masonry-column',
-  )
-
-  if (columnElement) {
-    headerColumnWidth.value = columnElement.getBoundingClientRect().width
-    return
-  }
-
-  headerColumnWidth.value = columnWidth.value
-}
-
-useResizeObserver(masonryWrapper, () => {
-  updateHeaderWidth()
 })
 
 const headerOffset = computed(() => {
@@ -105,40 +92,26 @@ const headerOffset = computed(() => {
   return headerHeight.value + MASONRY_GAP
 })
 
+const layout = computed(() => {
+  if (!wallWidth.value || !masonryItems.value.length) return null
+  return computeMasonryLayout({
+    aspectRatios: masonryItems.value.map(({ photo }) =>
+      resolveAspectRatio(photo.aspectRatio, photo.width, photo.height),
+    ),
+    containerWidth: wallWidth.value,
+    gap: MASONRY_GAP,
+    columnWidthTarget: columnWidth.value,
+    minColumns: minColumns.value,
+    maxColumns: maxColumns.value,
+    firstColumnOffset: headerOffset.value,
+  })
+})
+
 const headerStyle = computed(() => {
-  const styles: Record<string, string> = {}
-
   if (isMobile.value) {
-    styles.width = '100%'
-    styles.marginBottom = `${MASONRY_GAP}px`
-    return styles
+    return { width: '100%', marginBottom: `${MASONRY_GAP}px` }
   }
-
-  const width = headerColumnWidth.value || columnWidth.value
-  styles.width = `${width}px`
-
-  return styles
-})
-
-watch([columnWidth, maxColumns, minColumns], () => {
-  if (isMobile.value) {
-    return
-  }
-
-  nextTick(() => {
-    updateHeaderWidth()
-  })
-})
-
-watch(isMobile, (mobile) => {
-  if (mobile) {
-    headerColumnWidth.value = 0
-    return
-  }
-
-  nextTick(() => {
-    updateHeaderWidth()
-  })
+  return { width: `${layout.value?.columnWidth ?? columnWidth.value}px` }
 })
 
 const photoStats = computed(() => {
@@ -309,11 +282,8 @@ const scrollToTop = () => {
 
 onMounted(() => {
   window.addEventListener('scroll', handleScroll, { passive: true })
-  window.addEventListener('resize', updateHeaderWidth)
 
   nextTick(() => {
-    updateHeaderWidth()
-
     if (currentPhotoIndex.value) {
       scrollToPhoto(currentPhotoIndex.value)
     }
@@ -322,7 +292,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll)
-  window.removeEventListener('resize', updateHeaderWidth)
 })
 
 const handleOpenViewer = (index: number) => {
@@ -402,7 +371,6 @@ watch(currentPhotoIndex, (newIndex) => {
         ref="masonryWrapper"
         class="relative"
         :class="{ 'pt-2': isMobile }"
-        :style="{ '--masonry-header-offset': `${headerOffset}px` }"
       >
         <div
           ref="headerRef"
@@ -416,34 +384,32 @@ watch(currentPhotoIndex, (newIndex) => {
           />
         </div>
 
-        <!-- Masonry Wall -->
-        <MasonryWall
-          class="masonry-wall-with-header"
-          :items="masonryItems"
-          :column-width="columnWidth"
-          :gap="MASONRY_GAP"
-          :min-columns="minColumns"
-          :max-columns="maxColumns"
-          :ssr-columns="2"
-          :key-mapper="
-            (_item, _column, _row, index) =>
-              masonryItems[index]?.originalIndex ?? index
-          "
+        <!-- Precomputed masonry wall -->
+        <div
+          v-if="layout"
+          class="relative"
+          :style="{ height: `${layout.totalHeight}px` }"
         >
-          <template #default="{ item }">
-            <!-- Photo Items -->
+          <div
+            v-for="(entry, i) in masonryItems"
+            :key="entry.photo.id"
+            class="absolute"
+            :style="{
+              left: `${layout.boxes[i]!.left}px`,
+              top: `${layout.boxes[i]!.top}px`,
+              width: `${layout.boxes[i]!.width}px`,
+            }"
+          >
             <MasonryItem
-              v-if="item.photo && typeof item.originalIndex === 'number'"
-              :key="item.photo.id"
-              :photo="item.photo"
-              :index="item.originalIndex"
+              :photo="entry.photo"
+              :index="entry.originalIndex"
               :has-animated
               :first-screen-items="FIRST_SCREEN_ITEMS_COUNT"
               @visibility-change="handleVisibilityChange"
               @open-viewer="handleOpenViewer($event)"
             />
-          </template>
-        </MasonryWall>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -458,14 +424,5 @@ watch(currentPhotoIndex, (newIndex) => {
   left: 0;
   position: absolute;
   top: 0;
-}
-
-.masonry-wall-with-header :deep(.masonry-column:first-child) {
-  padding-top: var(--masonry-header-offset, 0px);
-}
-
-.masonry-wall-with-header
-  :deep(.masonry-column:first-child .masonry-item:first-child) {
-  margin-top: 0;
 }
 </style>
