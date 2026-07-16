@@ -14,6 +14,8 @@ const props = withDefaults(
     rootMargin?: string
     imageContain?: boolean
     lazy?: boolean
+    /** Skip the lazy gate and the fade-in — for remounts of already-loaded images. */
+    instant?: boolean
   }>(),
   {
     thumbhash: null,
@@ -24,6 +26,7 @@ const props = withDefaults(
     rootMargin: '50px',
     imageContain: false,
     lazy: true,
+    instant: false,
   },
 )
 
@@ -33,8 +36,8 @@ const emit = defineEmits<{
 }>()
 
 const elemRef = useTemplateRef('elemRef')
-const isElemVisible = ref(false)
-const isLoaded = ref(false)
+const isElemVisible = ref(props.instant)
+const isLoaded = ref(props.instant)
 const isError = ref(false)
 
 onMounted(() => {
@@ -88,7 +91,8 @@ const onError = () => {
       :alt="alt"
       :class="
         twMerge(
-          'absolute inset-0 w-full h-full transition-opacity duration-300',
+          'absolute inset-0 w-full h-full',
+          instant ? '' : 'transition-opacity duration-300',
           imageContain ? 'object-contain' : 'object-cover',
           isLoaded ? 'opacity-100' : 'opacity-0',
         )
