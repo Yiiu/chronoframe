@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest'
 import {
   computeColumnCount,
   computeMasonryLayout,
+  computeWindowRange,
+  findAnchorIndex,
+  type MasonryItemBox,
 } from '../../app/utils/masonryLayout'
 
 describe('computeColumnCount', () => {
@@ -72,5 +75,54 @@ describe('computeMasonryLayout', () => {
     const r = computeMasonryLayout({ ...base, aspectRatios: [] })
     expect(r.boxes).toEqual([])
     expect(r.totalHeight).toBe(0)
+  })
+})
+
+const box = (top: number, height: number, column = 0): MasonryItemBox => ({
+  left: 0,
+  top,
+  width: 100,
+  height,
+  column,
+})
+
+describe('computeWindowRange', () => {
+  const boxes = [box(0, 100), box(104, 100), box(0, 50, 1), box(208, 100)]
+
+  it('returns indices intersecting the viewport window', () => {
+    // window [0, 100]: box0 [0,100] yes, box1 [104,204] no, box2 [0,50] yes, box3 no
+    expect(computeWindowRange(boxes, 0, 100, 0)).toEqual([0, 2])
+  })
+
+  it('overscan extends the window on both sides', () => {
+    // window [-10, 110]: box1 top 104 <= 110 -> included
+    expect(computeWindowRange(boxes, 0, 100, 10)).toEqual([0, 1, 2])
+  })
+
+  it('treats edge-touching boxes as visible', () => {
+    // window [100, 200]: box0 bottom edge 100 touches -> included
+    expect(computeWindowRange(boxes, 100, 100, 0)).toEqual([0, 1])
+  })
+
+  it('returns empty for a window past the content', () => {
+    expect(computeWindowRange(boxes, 1000, 100, 0)).toEqual([])
+  })
+})
+
+describe('findAnchorIndex', () => {
+  const boxes = [box(0, 100), box(104, 100), box(50, 100, 1)]
+
+  it('returns the top-most box whose bottom is below scrollTop', () => {
+    // scrollTop 120: box0 bottom 100 above; box2 top 50 bottom 150 -> candidate;
+    // box1 top 104 bottom 204 -> candidate. box2 has smaller top.
+    expect(findAnchorIndex(boxes, 120)).toBe(2)
+  })
+
+  it('returns the first box at scrollTop 0', () => {
+    expect(findAnchorIndex(boxes, 0)).toBe(0)
+  })
+
+  it('returns -1 when scrolled past everything', () => {
+    expect(findAnchorIndex(boxes, 500)).toBe(-1)
   })
 })

@@ -90,3 +90,45 @@ export function computeMasonryLayout(opts: {
     columnWidth,
   }
 }
+
+/**
+ * Indices (ascending) of boxes intersecting the window
+ * [scrollTop - overscan, scrollTop + viewportHeight + overscan].
+ * `scrollTop` is relative to the wall's top edge. O(n) — a few thousand
+ * boxes per rAF-throttled scroll tick is well under a millisecond.
+ */
+export function computeWindowRange(
+  boxes: MasonryItemBox[],
+  scrollTop: number,
+  viewportHeight: number,
+  overscan: number,
+): number[] {
+  const min = scrollTop - overscan
+  const max = scrollTop + viewportHeight + overscan
+  const indices: number[] = []
+  for (let i = 0; i < boxes.length; i++) {
+    const b = boxes[i]!
+    if (b.top + b.height >= min && b.top <= max) indices.push(i)
+  }
+  return indices
+}
+
+/**
+ * The top-most box still (partly) below scrollTop — the scroll anchor to
+ * keep in place across a relayout. -1 when scrolled past all content.
+ */
+export function findAnchorIndex(
+  boxes: MasonryItemBox[],
+  scrollTop: number,
+): number {
+  let best = -1
+  let bestTop = Infinity
+  for (let i = 0; i < boxes.length; i++) {
+    const b = boxes[i]!
+    if (b.top + b.height > scrollTop && b.top < bestTop) {
+      best = i
+      bestTop = b.top
+    }
+  }
+  return best
+}
