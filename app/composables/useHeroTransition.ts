@@ -15,6 +15,8 @@ interface Options {
   // Resolve the CURRENT photo's grid thumbnail for the exit flight.
   // Returns null when it is not in the DOM / not measurable → caller degrades to fade.
   resolveCurrentThumb: () => ResolvedThumb | null
+  // Resolve the ENTRY source grid element to hide during the open flight.
+  resolveEntrySource?: () => HTMLElement | null
 }
 
 function rectFrom(el: Element): Rect {
@@ -132,15 +134,15 @@ export function useHeroTransition(options: Options) {
     el.style.opacity = '1'
 
     const run = () => {
-      const nw = el.naturalWidth
-      const nh = el.naturalHeight
-      const target = resolveTarget(nw, nh)
+      const target = resolveTarget(el.naturalWidth, el.naturalHeight)
       if (!target) {
         // Cannot measure viewer → skip hero, hand off immediately.
         settle()
         return
       }
-      // Entry source-hiding is added in Task 9 (needs the caller's resolver).
+      // Hide the source thumbnail so the grid shows a hole under the flying overlay.
+      const entrySource = options.resolveEntrySource?.()
+      if (entrySource) hideEl(entrySource)
       flyTo(target, settle)
     }
 
@@ -148,20 +150,60 @@ export function useHeroTransition(options: Options) {
     else el.addEventListener('load', run, { once: true })
   }
 
+  const onViewerOpen = () => {
+    // A re-open mid-exit must abandon the reverse flight before flying in again.
+    if (state.value === 'exiting') stopHandle()
+    startEntry()
+  }
+
+  const onIndexChange = () => {
+    // User swiped to another photo before hand-off completed → drop the overlay.
+    if (state.value === 'entering') {
+      stopHandle()
+      dispatch('SWIPE_AWAY')
+      overlayVisible.value = false
+      overlaySrc.value = null
+      restoreEl()
+      viewer.clearPendingHero()
+    }
+  }
+
+  const onViewerClose = () => {
+    dispatch('CLOSE')
+    const el = overlayRef.value
+    const dest = options.resolveCurrentThumb()
+    // Degrade to plain fade when there is no measurable destination or no overlay.
+    if (!el || !dest) {
+      stopHandle()
+      overlayVisible.value = false
+      overlaySrc.value = null
+      restoreEl()
+      viewer.clearPendingHero()
+      dispatch('EXIT_DONE')
+      return
+    }
+    // The overlay may have crossfaded out on settle — bring it back for the return flight.
+    overlaySrc.value = dest.thumbUrl
+    overlayVisible.value = true
+    el.style.opacity = '1'
+    restoreEl() // restore whatever was hidden on entry
+    hideEl(dest.el) // hide the destination thumbnail during the return flight
+    flyTo(dest.rect, () => {
+      overlayVisible.value = false
+      overlaySrc.value = null
+      restoreEl()
+      viewer.clearPendingHero()
+      dispatch('EXIT_DONE')
+    })
+  }
+
   return {
     state: readonly(state),
     overlayVisible: readonly(overlayVisible),
     overlaySrc: readonly(overlaySrc),
     overlayRef,
-    // hooks wired in Task 9
-    startEntry,
-    dispatch,
-    flyTo,
-    stopHandle,
-    hideEl,
-    restoreEl,
-    resolveTarget,
-    place,
-    _internal: { readOverlayRect },
+    onViewerOpen,
+    onViewerClose,
+    onIndexChange,
   }
 }

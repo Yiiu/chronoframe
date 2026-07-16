@@ -132,6 +132,11 @@ provide(
           @close="handleClose"
           @index-change="handleIndexChange"
         />
+        <PhotoHeroOverlay
+          :is-open="isViewerOpen"
+          :current-index="currentPhotoIndex"
+          :photos="viewerPhotos"
+        />
       </ClientOnly>
     </PhotosProvider>
   </UApp>
