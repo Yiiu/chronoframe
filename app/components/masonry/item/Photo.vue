@@ -6,24 +6,23 @@ import { motion, useDomRef } from 'motion-v'
 interface Props {
   photo: Photo
   index: number
+  isVisible: boolean
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
-  'visibility-change': [
-    { index: number; isVisible: boolean; date: string | Date },
-  ]
   openViewer: [number]
 }>()
 
 const { gtag } = useGtag()
 const { setPendingHero } = useViewerState()
 
-const isLoading = ref(true)
+const { loadedThumbIds } = useGridMemory()
+const alreadyLoaded = loadedThumbIds.has(props.photo.id)
+
+const isLoading = ref(!alreadyLoaded)
 const photoRef = ref<HTMLElement>()
 const videoRef = useDomRef()
-const isVisible = ref(false)
-const containerWidth = ref(0)
 
 const isHovering = ref(false)
 const isVideoPlaying = ref(false)
@@ -37,9 +36,6 @@ const touchCount = ref(0)
 const longPressTimer = ref<NodeJS.Timeout | null>(null)
 const initialTouchPos = ref<{ x: number; y: number } | null>(null)
 const isMobile = useMediaQuery('(max-width: 768px)')
-
-const resizeObserverRef = ref<ResizeObserver | null>(null)
-const intersectionObserverRef = ref<IntersectionObserver | null>(null)
 
 const processingState = getProcessingState(props.photo.id)
 
@@ -67,9 +63,22 @@ const shouldShowInfoOverlay = computed(() => {
   return isVideoLoaded.value
 })
 
+watch(
+  () => props.isVisible,
+  (visible) => {
+    if (visible) {
+      nextTick(() => {
+        processLivePhotoWhenVisible()
+      })
+    }
+  },
+  { immediate: true },
+)
+
 // Methods
 const handleImageLoad = () => {
   isLoading.value = false
+  loadedThumbIds.add(props.photo.id)
 }
 
 const handleImageError = () => {
@@ -315,7 +324,7 @@ const processLivePhotoWhenVisible = async () => {
   if (
     !props.photo.isLivePhoto ||
     !props.photo.livePhotoVideoUrl ||
-    !isVisible.value
+    !props.isVisible
   )
     return
 
@@ -391,86 +400,28 @@ const formatExposureTime = (
   }
 }
 
-// Preload image on mount to get dimensions
 onMounted(() => {
-  // Get container width
-  nextTick(() => {
-    if (photoRef.value) {
-      containerWidth.value = photoRef.value.offsetWidth
-
-      // Set up resize observer to track width changes
-      const resizeObserver = new ResizeObserver(() => {
-        if (photoRef.value) {
-          containerWidth.value = photoRef.value.offsetWidth
-        }
-      })
-      resizeObserver.observe(photoRef.value)
-      resizeObserverRef.value = resizeObserver
-    }
-  })
-
+  if (alreadyLoaded) {
+    isLoading.value = false
+    return
+  }
   // Preload thumbnail image
   if (props.photo.thumbnailUrl) {
     const img = new Image()
     img.onload = () => {
-      // Update loading state after preload completes
       isLoading.value = false
     }
     img.onerror = () => {
-      // Even if preload fails, we should stop loading state
       isLoading.value = false
     }
     img.src = props.photo.thumbnailUrl
   } else {
-    // If no thumbnail URL, stop loading immediately
     isLoading.value = false
   }
-
-  // Set up intersection observer for visibility tracking
-  nextTick(() => {
-    if (photoRef.value) {
-      const observer = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
-            const newVisibility = entry.isIntersecting
-            if (newVisibility !== isVisible.value) {
-              isVisible.value = newVisibility
-              emit('visibility-change', {
-                index: props.index,
-                isVisible: newVisibility,
-                date: props.photo.dateTaken || new Date().toISOString(),
-              })
-
-              // Process LivePhoto when it becomes visible
-              if (newVisibility) {
-                nextTick(() => {
-                  processLivePhotoWhenVisible()
-                })
-              }
-            }
-          })
-        },
-        {
-          threshold: 0.1, // Trigger when 10% of the item is visible
-          rootMargin: '50px 0px 50px 0px', // Add some margin for smoother transitions
-        },
-      )
-
-      observer.observe(photoRef.value)
-      intersectionObserverRef.value = observer
-    }
-  })
 })
 
-// Cleanup observers on unmount
+// Cleanup on unmount
 onUnmounted(() => {
-  if (resizeObserverRef.value) {
-    resizeObserverRef.value.disconnect()
-  }
-  if (intersectionObserverRef.value) {
-    intersectionObserverRef.value.disconnect()
-  }
-
   // Clean up touch timer
   if (longPressTimer.value) {
     clearTimeout(longPressTimer.value)
@@ -510,6 +461,7 @@ onUnmounted(() => {
           :src="photo.thumbnailUrl || ''"
           :alt="photo.title || $t('ui.photo.altFallback')"
           :thumbhash="photo.thumbnailHash || ''"
+          :instant="alreadyLoaded"
           class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           @load="handleImageLoad"
           @error="handleImageError"

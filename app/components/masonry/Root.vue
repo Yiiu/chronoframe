@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { motion } from 'motion-v'
-import { computeMasonryLayout } from '~/utils/masonryLayout'
+import {
+  computeMasonryLayout,
+  computeWindowRange,
+  findAnchorIndex,
+} from '~/utils/masonryLayout'
 import { resolveAspectRatio } from '~/utils/aspectRatio'
 interface Props {
   photos: Photo[]
@@ -21,7 +25,9 @@ const displayPhotos = computed(() => {
   return hasActiveFilters.value ? filteredPhotos.value : sortedPhotos.value
 })
 
-const { currentPhotoIndex, isViewerOpen } = storeToRefs(useViewerState())
+const { currentPhotoIndex, isViewerOpen, heroActive } = storeToRefs(
+  useViewerState(),
+)
 
 const FIRST_SCREEN_ITEMS_COUNT = 50
 const MASONRY_GAP = 4
@@ -107,6 +113,104 @@ const layout = computed(() => {
   })
 })
 
+const OVERSCAN_PX = 800
+const VISIBLE_MARGIN_PX = 50 // matches the old IntersectionObserver rootMargin
+
+const scrollTopInWall = ref(0)
+const viewportHeight = ref(0)
+
+const updateScrollMetrics = () => {
+  viewportHeight.value = window.innerHeight
+  const wrapper = masonryWrapper.value
+  if (!wrapper) return
+  scrollTopInWall.value = -wrapper.getBoundingClientRect().top
+}
+
+const pinnedIndex = computed(() =>
+  isViewerOpen.value || heroActive.value ? currentPhotoIndex.value : -1,
+)
+
+const renderedIndices = computed(() => {
+  if (!layout.value) return []
+  const indices = computeWindowRange(
+    layout.value.boxes,
+    scrollTopInWall.value,
+    viewportHeight.value,
+    OVERSCAN_PX,
+  )
+  const pin = pinnedIndex.value
+  if (pin >= 0 && pin < masonryItems.value.length && !indices.includes(pin)) {
+    indices.push(pin)
+  }
+  return indices
+})
+
+const visibleIndices = computed(() => {
+  if (!layout.value) return []
+  return computeWindowRange(
+    layout.value.boxes,
+    scrollTopInWall.value,
+    viewportHeight.value,
+    VISIBLE_MARGIN_PX,
+  )
+})
+
+watch(visibleIndices, (indices) => {
+  visiblePhotos.value = new Set(indices)
+  updateDateRange()
+  nextTick(() => {
+    processVisibleLivePhotos()
+  })
+})
+
+const { enteredIds } = useGridMemory()
+
+// After the first real render, every first-screen photo counts as entered —
+// items mounted later (scrolled into the window) skip the stagger entirely,
+// matching what the user could actually see in the old all-mounted grid.
+watch(
+  layout,
+  (l) => {
+    if (!l) return
+    nextTick(() => {
+      masonryItems.value
+        .slice(0, FIRST_SCREEN_ITEMS_COUNT)
+        .forEach((e) => enteredIds.add(e.photo.id))
+    })
+  },
+  { once: true },
+)
+
+// Re-anchor scroll to the previous top-visible photo when a width/column
+// relayout moves everything. Item-set changes (sort/filter) intentionally
+// keep the pixel scroll position — that matches the old library's redraw.
+watch(layout, (newLayout, oldLayout) => {
+  if (!newLayout || !oldLayout) return
+  if (newLayout.boxes.length !== oldLayout.boxes.length) return
+  if (
+    newLayout.columnCount === oldLayout.columnCount &&
+    newLayout.columnWidth === oldLayout.columnWidth
+  )
+    return
+
+  const anchor = findAnchorIndex(oldLayout.boxes, scrollTopInWall.value)
+  if (anchor < 0) return
+  const oldBox = oldLayout.boxes[anchor]!
+  const newBox = newLayout.boxes[anchor]!
+  const delta = Math.min(
+    Math.max(0, scrollTopInWall.value - oldBox.top),
+    newBox.height,
+  )
+
+  nextTick(() => {
+    const wrapper = masonryWrapper.value
+    if (!wrapper) return
+    const wallTopAbs = wrapper.getBoundingClientRect().top + window.scrollY
+    window.scrollTo({ top: Math.max(0, wallTopAbs + newBox.top + delta) })
+    updateScrollMetrics()
+  })
+})
+
 const headerStyle = computed(() => {
   if (isMobile.value) {
     return { width: '100%', marginBottom: `${MASONRY_GAP}px` }
@@ -151,27 +255,6 @@ const dateRangeText = computed(() => {
   if (!range || !range.start || !range.end) return ''
   return `${range.start} - ${range.end}`
 })
-
-const handleVisibilityChange = ({
-  index,
-  isVisible,
-}: {
-  index: number
-  isVisible: boolean
-  date: string | Date
-}) => {
-  if (isVisible) {
-    visiblePhotos.value.add(index)
-  } else {
-    visiblePhotos.value.delete(index)
-  }
-  updateDateRange()
-
-  // Process LivePhotos for visible photos
-  nextTick(() => {
-    processVisibleLivePhotos()
-  })
-}
 
 // Process LivePhotos for currently visible photos
 const processVisibleLivePhotos = async () => {
@@ -268,9 +351,16 @@ const updateDateRange = () => {
   }
 }
 
+let scrollRafId = 0
 const handleScroll = () => {
   const scrollTop = window.pageYOffset || document.documentElement.scrollTop
   showFloatingActions.value = scrollTop > 500
+  if (!scrollRafId) {
+    scrollRafId = requestAnimationFrame(() => {
+      scrollRafId = 0
+      updateScrollMetrics()
+    })
+  }
 }
 
 const scrollToTop = () => {
@@ -284,6 +374,7 @@ onMounted(() => {
   window.addEventListener('scroll', handleScroll, { passive: true })
 
   nextTick(() => {
+    updateScrollMetrics()
     if (currentPhotoIndex.value) {
       scrollToPhoto(currentPhotoIndex.value)
     }
@@ -292,6 +383,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll)
+  if (scrollRafId) cancelAnimationFrame(scrollRafId)
 })
 
 const handleOpenViewer = (index: number) => {
@@ -299,28 +391,18 @@ const handleOpenViewer = (index: number) => {
 }
 
 const scrollToPhoto = (photoIndex: number) => {
-  if (!displayPhotos.value[photoIndex]) return
+  const box = layout.value?.boxes[photoIndex]
+  const wrapper = masonryWrapper.value
+  if (!box || !wrapper) return
 
-  const photoId = displayPhotos.value[photoIndex].id
-  const photoElement = document.querySelector(`[data-photo-id="${photoId}"]`)
+  const wallTopAbs = wrapper.getBoundingClientRect().top + window.scrollY
+  const targetScrollY =
+    wallTopAbs + box.top - window.innerHeight / 2 + box.height / 2
 
-  if (photoElement) {
-    const elementRect = photoElement.getBoundingClientRect()
-    const windowHeight = window.innerHeight
-    const currentScrollY = window.pageYOffset
-
-    // 让图片在视口中央
-    const targetScrollY =
-      currentScrollY +
-      elementRect.top -
-      windowHeight / 2 +
-      elementRect.height / 2
-
-    window.scrollTo({
-      top: Math.max(0, targetScrollY),
-      behavior: 'smooth',
-    })
-  }
+  window.scrollTo({
+    top: Math.max(0, targetScrollY),
+    behavior: 'smooth',
+  })
 }
 
 watch(currentPhotoIndex, (newIndex) => {
@@ -384,15 +466,15 @@ watch(currentPhotoIndex, (newIndex) => {
           />
         </div>
 
-        <!-- Precomputed masonry wall -->
+        <!-- Precomputed masonry wall, windowed -->
         <div
           v-if="layout"
           class="relative"
           :style="{ height: `${layout.totalHeight}px` }"
         >
           <div
-            v-for="(entry, i) in masonryItems"
-            :key="entry.photo.id"
+            v-for="i in renderedIndices"
+            :key="masonryItems[i]!.photo.id"
             class="absolute"
             :style="{
               left: `${layout.boxes[i]!.left}px`,
@@ -401,11 +483,11 @@ watch(currentPhotoIndex, (newIndex) => {
             }"
           >
             <MasonryItem
-              :photo="entry.photo"
-              :index="entry.originalIndex"
+              :photo="masonryItems[i]!.photo"
+              :index="masonryItems[i]!.originalIndex"
+              :is-visible="visiblePhotos.has(i)"
               :has-animated
               :first-screen-items="FIRST_SCREEN_ITEMS_COUNT"
-              @visibility-change="handleVisibilityChange"
               @open-viewer="handleOpenViewer($event)"
             />
           </div>

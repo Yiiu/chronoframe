@@ -57,7 +57,7 @@ const { stop } = useIntersectionObserver(
   {
     threshold: props.threshold,
     rootMargin: props.rootMargin,
-    immediate: props.lazy,
+    immediate: props.lazy && !props.instant,
   },
 )
 

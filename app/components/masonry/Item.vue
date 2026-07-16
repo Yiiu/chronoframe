@@ -5,6 +5,7 @@ const props = withDefaults(
   defineProps<{
     photo: Photo
     index: number
+    isVisible: boolean
     hasAnimated: boolean
     firstScreenItems?: number
   }>(),
@@ -15,9 +16,6 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   animationComplete: []
-  'visibility-change': [
-    { index: number; isVisible: boolean; date: string | Date },
-  ]
   openViewer: [number]
 }>()
 
@@ -25,9 +23,15 @@ const itemKey = computed(() => {
   return props.photo.id
 })
 
-const shouldAnimate = computed(() => {
-  return !props.hasAnimated && props.index < props.firstScreenItems
-})
+const { enteredIds } = useGridMemory()
+
+// Evaluated once per mount: animate only on the photo's first-ever mount
+// within the first screen. Remounts (windowing) skip straight to 'visible'.
+const shouldAnimate =
+  !props.hasAnimated &&
+  props.index < props.firstScreenItems &&
+  !enteredIds.has(props.photo.id)
+enteredIds.add(props.photo.id)
 
 const animateDelay = computed(() => {
   return props.index * 0.02
@@ -72,7 +76,7 @@ const itemVariants = {
     <MasonryItemPhoto
       :photo="photo"
       :index="index"
-      @visibility-change="emit('visibility-change', $event)"
+      :is-visible="isVisible"
       @open-viewer="emit('openViewer', $event)"
     />
   </motion.div>

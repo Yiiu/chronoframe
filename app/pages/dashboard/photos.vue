@@ -2799,7 +2799,7 @@ onUnmounted(() => {
                   v-if="previewingPhoto"
                   :photo="previewingPhoto"
                   :index="0"
-                  @visibility-change="() => {}"
+                  :is-visible="true"
                   @open-viewer="openInNewTab(`/${previewingPhoto.id}`)"
                 />
               </div>
