@@ -32,6 +32,10 @@ const resolveEntrySource = () => {
   return document.querySelector<HTMLElement>(`[data-photo-id="${photo.id}"]`)
 }
 
+const prefersReducedMotion = import.meta.client
+  ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  : false
+
 const {
   overlayVisible,
   overlaySrc,
@@ -39,7 +43,11 @@ const {
   onViewerOpen,
   onViewerClose,
   onIndexChange,
-} = useHeroTransition({ resolveCurrentThumb, resolveEntrySource })
+} = useHeroTransition({
+  resolveCurrentThumb,
+  resolveEntrySource,
+  disabled: prefersReducedMotion,
+})
 
 watch(
   () => props.isOpen,

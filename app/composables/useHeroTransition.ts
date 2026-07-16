@@ -17,6 +17,9 @@ interface Options {
   resolveCurrentThumb: () => ResolvedThumb | null
   // Resolve the ENTRY source grid element to hide during the open flight.
   resolveEntrySource?: () => HTMLElement | null
+  // When true (e.g. prefers-reduced-motion), skip the fly entirely and let the
+  // viewer's existing fade own the transition.
+  disabled?: boolean
 }
 
 function rectFrom(el: Element): Rect {
@@ -122,6 +125,7 @@ export function useHeroTransition(options: Options) {
   }
 
   const startEntry = () => {
+    if (options.disabled) return // reduced-motion → viewer fade owns the transition
     const pending = pendingHero.value
     if (!pending) return // deep-link / no source → no hero, plain fade owns it
     const el = overlayRef.value
@@ -169,6 +173,7 @@ export function useHeroTransition(options: Options) {
   }
 
   const onViewerClose = () => {
+    if (options.disabled) return // reduced-motion → viewer fade owns the transition
     dispatch('CLOSE')
     const el = overlayRef.value
     const dest = options.resolveCurrentThumb()
