@@ -195,6 +195,21 @@ watch(
   { once: true },
 )
 
+// Deep-link (direct /:photoId load): center the grid on the current photo once
+// the first layout exists — at onMounted the wall width isn't measured yet.
+watch(
+  layout,
+  (l) => {
+    if (!l) return
+    nextTick(() => {
+      if (isViewerOpen.value && currentMasonryIndex.value >= 0) {
+        scrollToPhoto(currentMasonryIndex.value)
+      }
+    })
+  },
+  { once: true },
+)
+
 // Re-anchor scroll to the previous top-visible photo when a width/column
 // relayout moves everything. Item-set changes (sort/filter) intentionally
 // keep the pixel scroll position — that matches the old library's redraw.
@@ -389,9 +404,6 @@ onMounted(() => {
 
   nextTick(() => {
     updateScrollMetrics()
-    if (isViewerOpen.value && currentMasonryIndex.value >= 0) {
-      scrollToPhoto(currentMasonryIndex.value)
-    }
   })
 })
 
