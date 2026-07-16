@@ -2,8 +2,10 @@ import { animate } from 'motion-v'
 import { heroReducer, type HeroState } from './heroReducer'
 import { computeContainFit, type Rect } from '~/utils/heroFrame'
 
-const FLIGHT = { duration: 0.35, easing: [0.22, 1, 0.36, 1] as const }
-const CROSSFADE_MS = 120
+// Flight tuning. The ease keeps visible travel across the whole duration — a
+// pure ease-out lands in the first ~80ms and reads as "no animation".
+const FLIGHT = { duration: 0.42, easing: [0.32, 0.72, 0, 1] as const }
+const CROSSFADE_MS = 150
 
 interface ResolvedThumb {
   el: HTMLElement
@@ -22,14 +24,12 @@ interface Options {
   disabled?: boolean
 }
 
+// motion-v's animate() returns playback controls that are also a thenable.
+type AnimHandle = { stop: () => void; then: (cb: () => void) => void }
+
 function rectFrom(el: Element): Rect {
   const r = el.getBoundingClientRect()
   return { left: r.left, top: r.top, width: r.width, height: r.height }
-}
-
-// Live transform of the overlay, read mid-flight for reverse-from-current.
-function readOverlayRect(el: HTMLElement): Rect {
-  return rectFrom(el)
 }
 
 export function useHeroTransition(options: Options) {
@@ -37,11 +37,18 @@ export function useHeroTransition(options: Options) {
   const { pendingHero } = storeToRefs(viewer)
 
   const state = ref<HeroState>('idle')
-  const overlayVisible = ref(false)
+  // Only `src` is reactive; the overlay's box/opacity/display are driven
+  // imperatively so getBoundingClientRect always reads the real, current box
+  // (a reactive v-show flushes a tick late — too late for a synchronous read).
   const overlaySrc = ref<string | null>(null)
   const overlayRef = ref<HTMLImageElement | null>(null)
 
-  let handle: { stop: () => void } | null = null
+  // Both handles are owned so they can be cancelled. An un-cancelled WAAPI
+  // opacity animation keeps overriding inline styles on the next open, which is
+  // why a re-open used to fly invisibly (computed opacity stuck at 0).
+  let flightHandle: AnimHandle | null = null
+  let fadeHandle: AnimHandle | null = null
+  let lastTarget: Rect | null = null
   let hiddenEl: HTMLElement | null = null
   let hiddenPrevVisibility: string | null = null
 
@@ -49,12 +56,21 @@ export function useHeroTransition(options: Options) {
     state.value = heroReducer(state.value, event)
   }
 
-  const stopHandle = () => {
-    handle?.stop()
-    handle = null
+  const stopAnims = () => {
+    flightHandle?.stop()
+    fadeHandle?.stop()
+    flightHandle = null
+    fadeHandle = null
+    // The opacity crossfade runs on the Web Animations API with fill-forwards.
+    // Once it *finishes* its handle is dropped, but the animation keeps holding
+    // opacity:0 and overrides inline styles on the next open — cancel it outright
+    // so `showOverlayAt`'s opacity:1 actually takes effect.
+    const el = overlayRef.value
+    if (el) el.getAnimations().forEach((a) => a.cancel())
   }
 
   const hideEl = (el: HTMLElement) => {
+    restoreEl() // single hidden-slot: restore any prior element first
     hiddenEl = el
     hiddenPrevVisibility = el.style.visibility || null
     el.style.visibility = 'hidden'
@@ -62,65 +78,82 @@ export function useHeroTransition(options: Options) {
 
   const restoreEl = () => {
     if (hiddenEl) {
-      if (hiddenPrevVisibility != null) hiddenEl.style.visibility = hiddenPrevVisibility
+      if (hiddenPrevVisibility != null)
+        hiddenEl.style.visibility = hiddenPrevVisibility
       else hiddenEl.style.removeProperty('visibility')
     }
     hiddenEl = null
     hiddenPrevVisibility = null
   }
 
-  // Position the overlay <img> at an absolute viewport rect via left/top/w/h.
-  const place = (el: HTMLElement, r: Rect) => {
+  // Imperatively show the overlay at an absolute viewport rect, fully opaque.
+  const showOverlayAt = (el: HTMLElement, r: Rect) => {
     el.style.left = `${r.left}px`
     el.style.top = `${r.top}px`
     el.style.width = `${r.width}px`
     el.style.height = `${r.height}px`
+    el.style.opacity = '1'
+    el.style.display = 'block'
   }
 
-  // Compute the contain-fit target rect inside the viewer's image area.
-  const resolveTarget = (naturalWidth: number, naturalHeight: number): Rect | null => {
+  const hideOverlay = () => {
+    const el = overlayRef.value
+    if (el) el.style.display = 'none'
+    overlaySrc.value = null
+  }
+
+  // Contain-fit target rect inside the viewer's image area.
+  const resolveTarget = (
+    naturalWidth: number,
+    naturalHeight: number,
+  ): Rect | null => {
     const viewport = document.querySelector('[data-hero-viewport]')
     if (!viewport) return null
     return computeContainFit(rectFrom(viewport), naturalWidth, naturalHeight)
   }
 
-  const settle = () => {
-    dispatch('ENTER_DONE')
-    // Crossfade the overlay out; the underlying ProgressiveImage already shows
-    // the identical thumbnail, so this only masks sub-pixel rounding.
-    const el = overlayRef.value
-    if (!el) {
-      overlayVisible.value = false
-      overlaySrc.value = null
-      viewer.clearPendingHero()
-      return
-    }
-    animate(el, { opacity: [1, 0] }, { duration: CROSSFADE_MS / 1000 }).then(() => {
-      overlayVisible.value = false
-      overlaySrc.value = null
-      viewer.clearPendingHero()
-    })
-  }
-
-  const flyTo = (target: Rect, onDone: () => void) => {
+  const flyTo = (from: Rect, target: Rect, onDone: () => void) => {
     const el = overlayRef.value
     if (!el) return onDone()
-    stopHandle()
-    const from = readOverlayRect(el)
-    // Animate via left/top/width/height so we can always read a live rect back.
-    handle = animate(
+    flightHandle?.stop()
+    flightHandle = animate(
       el,
       {
         left: [`${from.left}px`, `${target.left}px`],
         top: [`${from.top}px`, `${target.top}px`],
         width: [`${from.width}px`, `${target.width}px`],
         height: [`${from.height}px`, `${target.height}px`],
+        // Pin opacity to 1 for the whole flight. motion-v retains a per-element
+        // opacity MotionValue from the previous settle crossfade and would
+        // otherwise re-assert its stale 0 every frame, flying the overlay invisibly.
+        opacity: [1, 1],
       },
       { duration: FLIGHT.duration, ease: FLIGHT.easing },
-    )
-    handle.then(() => {
-      handle = null
+    ) as AnimHandle
+    flightHandle.then(() => {
+      flightHandle = null
       onDone()
+    })
+  }
+
+  const settle = () => {
+    dispatch('ENTER_DONE')
+    // Reveal the destination NOW: dropping `heroCovering` makes the viewer slide
+    // jump to full opacity instantly (masked by the still-opaque overlay), then
+    // the overlay crossfades out over the identical image → no visible change.
+    viewer.setHeroCovering(false)
+    viewer.clearPendingHero()
+    const el = overlayRef.value
+    if (!el) return
+    fadeHandle?.stop()
+    fadeHandle = animate(
+      el,
+      { opacity: [1, 0] },
+      { duration: CROSSFADE_MS / 1000 },
+    ) as AnimHandle
+    fadeHandle.then(() => {
+      fadeHandle = null
+      hideOverlay()
     })
   }
 
@@ -131,43 +164,57 @@ export function useHeroTransition(options: Options) {
     const el = overlayRef.value
     if (!el) return
 
+    stopAnims() // cancel any lingering flight/fade from a previous cycle
     dispatch('OPEN')
+    viewer.setHeroActive(true)
+    viewer.setHeroCovering(true)
     overlaySrc.value = pending.thumbUrl
-    overlayVisible.value = true
-    place(el, pending.rect)
-    el.style.opacity = '1'
+    showOverlayAt(el, pending.rect)
 
     const run = () => {
       const target = resolveTarget(el.naturalWidth, el.naturalHeight)
       if (!target) {
-        // Cannot measure viewer → skip hero, hand off immediately.
+        // Cannot measure the viewer → skip the fly, hand off immediately.
         settle()
         return
       }
+      lastTarget = target
       // Hide the source thumbnail so the grid shows a hole under the flying overlay.
       const entrySource = options.resolveEntrySource?.()
       if (entrySource) hideEl(entrySource)
-      flyTo(target, settle)
+      flyTo(pending.rect, target, settle)
     }
 
     if (el.complete && el.naturalWidth) run()
     else el.addEventListener('load', run, { once: true })
   }
 
+  const finishExit = () => {
+    stopAnims()
+    restoreEl()
+    hideOverlay()
+    lastTarget = null
+    viewer.setHeroActive(false)
+    viewer.setHeroCovering(false)
+    viewer.clearPendingHero()
+    dispatch('EXIT_DONE')
+  }
+
   const onViewerOpen = () => {
     // A re-open mid-exit must abandon the reverse flight before flying in again.
-    if (state.value === 'exiting') stopHandle()
+    if (state.value === 'exiting') stopAnims()
     startEntry()
   }
 
   const onIndexChange = () => {
-    // User swiped to another photo before hand-off completed → drop the overlay.
+    // User swiped to another photo before hand-off completed → drop the overlay
+    // and reveal whatever slide Swiper landed on.
     if (state.value === 'entering') {
-      stopHandle()
+      stopAnims()
       dispatch('SWIPE_AWAY')
-      overlayVisible.value = false
-      overlaySrc.value = null
       restoreEl()
+      hideOverlay()
+      viewer.setHeroCovering(false)
       viewer.clearPendingHero()
     }
   }
@@ -177,34 +224,33 @@ export function useHeroTransition(options: Options) {
     dispatch('CLOSE')
     const el = overlayRef.value
     const dest = options.resolveCurrentThumb()
-    // Degrade to plain fade when there is no measurable destination or no overlay.
+    // Degrade to a plain fade when there is no measurable destination / overlay.
     if (!el || !dest) {
-      stopHandle()
-      overlayVisible.value = false
-      overlaySrc.value = null
-      restoreEl()
-      viewer.clearPendingHero()
-      dispatch('EXIT_DONE')
+      finishExit()
       return
     }
-    // The overlay may have crossfaded out on settle — bring it back for the return flight.
-    overlaySrc.value = dest.thumbUrl
-    overlayVisible.value = true
-    el.style.opacity = '1'
+    stopAnims()
     restoreEl() // restore whatever was hidden on entry
+
+    // Fly from the image's current on-screen box back to the grid thumbnail. The
+    // box is the contain-fit of the displayed photo; fall back to the last known
+    // target, then to the destination rect (a no-op move) if all else fails.
+    const gridImg = dest.el.querySelector('img')
+    const from =
+      (gridImg?.naturalWidth
+        ? resolveTarget(gridImg.naturalWidth, gridImg.naturalHeight)
+        : null) ??
+      lastTarget ??
+      dest.rect
+
+    overlaySrc.value = dest.thumbUrl
+    showOverlayAt(el, from) // display:block + opacity:1 synchronously
     hideEl(dest.el) // hide the destination thumbnail during the return flight
-    flyTo(dest.rect, () => {
-      overlayVisible.value = false
-      overlaySrc.value = null
-      restoreEl()
-      viewer.clearPendingHero()
-      dispatch('EXIT_DONE')
-    })
+    flyTo(from, dest.rect, finishExit)
   }
 
   return {
     state: readonly(state),
-    overlayVisible: readonly(overlayVisible),
     overlaySrc: readonly(overlaySrc),
     overlayRef,
     onViewerOpen,

@@ -36,18 +36,12 @@ const prefersReducedMotion = import.meta.client
   ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
   : false
 
-const {
-  overlayVisible,
-  overlaySrc,
-  overlayRef,
-  onViewerOpen,
-  onViewerClose,
-  onIndexChange,
-} = useHeroTransition({
-  resolveCurrentThumb,
-  resolveEntrySource,
-  disabled: prefersReducedMotion,
-})
+const { overlaySrc, overlayRef, onViewerOpen, onViewerClose, onIndexChange } =
+  useHeroTransition({
+    resolveCurrentThumb,
+    resolveEntrySource,
+    disabled: prefersReducedMotion,
+  })
 
 watch(
   () => props.isOpen,
@@ -68,12 +62,11 @@ watch(
 <template>
   <Teleport to="body">
     <img
-      v-show="overlayVisible"
       ref="overlayRef"
       :src="overlaySrc || ''"
       alt=""
       class="pointer-events-none fixed z-[70] object-contain will-change-transform select-none"
-      style="left: 0; top: 0; width: 0; height: 0"
+      style="left: 0; top: 0; width: 0; height: 0; opacity: 0; display: none"
       draggable="false"
     />
   </Teleport>

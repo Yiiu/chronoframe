@@ -89,9 +89,12 @@ const longPressTimer = ref<NodeJS.Timeout | null>(null)
 // Import LivePhoto processor
 const { convertMovToMp4, getProcessingState } = useLivePhotoProcessor()
 
-const { pendingHero } = storeToRefs(useViewerState())
-// True while a hero fly-in owns the motion for the current photo's slide.
-const isHeroOpen = computed(() => !!pendingHero.value)
+// Hero coordination (see stores/viewer.ts):
+// - heroActive: this open was a hero fly-in → the current slide's opacity is
+//   driven instantly (the flying overlay owns the visible motion).
+// - heroCovering: the overlay is still flying → keep the current slide invisible
+//   until it hands off at settle, otherwise both images show at once (ghosting).
+const { heroActive, heroCovering } = storeToRefs(useViewerState())
 
 // Computed
 const currentPhoto = computed(() => props.photos[props.currentIndex])
@@ -593,11 +596,14 @@ const swiperModules = [Navigation, Keyboard, Virtual]
           :class="isMobile ? 'flex-col' : 'flex-row'"
         >
           <!-- 图片显示区域 -->
-          <div
-            class="z-10 flex min-h-0 min-w-0 flex-1 flex-col"
-            data-hero-viewport
-          >
-            <div class="group relative flex min-h-0 min-w-0 flex-1">
+          <div class="z-10 flex min-h-0 min-w-0 flex-1 flex-col">
+            <!-- data-hero-viewport marks the ACTUAL image box (excludes the
+                 bottom thumbnail gallery) so the hero fly target is measured
+                 against where the photo really renders. -->
+            <div
+              class="group relative flex min-h-0 min-w-0 flex-1"
+              data-hero-viewport
+            >
               <!-- 顶部工具栏 -->
               <motion.div
                 :initial="{ opacity: 0 }"
@@ -699,17 +705,21 @@ const swiperModules = [Navigation, Keyboard, Virtual]
                 >
                   <motion.div
                     :initial="
-                      isHeroOpen && index === currentIndex
+                      heroActive && index === currentIndex
                         ? { opacity: 0 }
                         : { opacity: 0.5, scale: 0.95 }
                     "
                     :animate="
-                      isHeroOpen && index === currentIndex
-                        ? { opacity: 1 }
+                      heroCovering && index === currentIndex
+                        ? { opacity: 0 }
                         : { opacity: 1, scale: 1 }
                     "
                     :exit="{ opacity: 0, scale: 0.95 }"
-                    :transition="{ type: 'spring', duration: 0.4, bounce: 0 }"
+                    :transition="
+                      heroActive && index === currentIndex
+                        ? { duration: 0 }
+                        : { type: 'spring', duration: 0.4, bounce: 0 }
+                    "
                     class="relative flex h-full w-full items-center justify-center"
                     style="
                       user-select: none;

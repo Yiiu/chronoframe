@@ -22,6 +22,21 @@ export const useViewerState = defineStore('photo-viewer-state', () => {
     pendingHero.value = null
   }
 
+  // `heroActive`: the current viewer session was opened via a hero fly-in, so the
+  // current slide's opacity transitions instantly (the overlay owns the motion).
+  // `heroCovering`: the overlay is still flying and masking the destination slide,
+  // which must stay invisible until the overlay hands off at settle.
+  const heroActive = ref(false)
+  const heroCovering = ref(false)
+
+  const setHeroActive = (value: boolean) => {
+    heroActive.value = value
+  }
+
+  const setHeroCovering = (value: boolean) => {
+    heroCovering.value = value
+  }
+
   const openViewer = (
     index: number,
     route?: string | null,
@@ -60,11 +75,15 @@ export const useViewerState = defineStore('photo-viewer-state', () => {
     isDirectAccess,
     scopedPhotos,
     pendingHero,
+    heroActive,
+    heroCovering,
     openViewer,
     switchToIndex,
     closeViewer,
     clearReturnRoute,
     setPendingHero,
     clearPendingHero,
+    setHeroActive,
+    setHeroCovering,
   }
 })
