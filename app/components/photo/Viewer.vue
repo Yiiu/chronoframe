@@ -554,7 +554,7 @@ const swiperModules = [Navigation, Keyboard, Virtual]
         :initial="{ opacity: 0 }"
         :animate="{ opacity: 1 }"
         :exit="{ opacity: 0 }"
-        :transition="{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }"
+        :transition="{ duration: 0.3 }"
         class="fixed inset-0 bg-white/50 dark:bg-black/50 backdrop-blur-2xl z-50"
         @click="emit('close')"
       />

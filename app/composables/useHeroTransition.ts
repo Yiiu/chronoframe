@@ -221,6 +221,13 @@ export function useHeroTransition(options: Options) {
 
   const onViewerClose = () => {
     if (options.disabled) return // reduced-motion → viewer fade owns the transition
+    // Closed before any entry ran (opened and dismissed within a tick): nothing
+    // has flown or been hidden, so just reset — a reverse flight here would hide
+    // the grid thumbnail with no matching restore and leave a black hole.
+    if (state.value === 'idle') {
+      finishExit()
+      return
+    }
     dispatch('CLOSE')
     const el = overlayRef.value
     const dest = options.resolveCurrentThumb()

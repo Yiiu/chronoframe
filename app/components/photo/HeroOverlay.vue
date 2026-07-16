@@ -46,7 +46,11 @@ const { overlaySrc, overlayRef, onViewerOpen, onViewerClose, onIndexChange } =
 watch(
   () => props.isOpen,
   (open, wasOpen) => {
-    if (open && !wasOpen) nextTick(onViewerOpen)
+    // onViewerOpen is deferred to nextTick so the viewer's [data-hero-viewport]
+    // is mounted before we measure. If the viewer was closed again in that gap
+    // (click → immediate ESC), skip the entry entirely so it can't hide the grid
+    // thumbnail into a viewer that is no longer open.
+    if (open && !wasOpen) nextTick(() => props.isOpen && onViewerOpen())
     else if (!open && wasOpen) onViewerClose()
   },
 )
