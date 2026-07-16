@@ -91,7 +91,12 @@ watch(isHovering, (hovering) => {
 watch(
   () => props.isVisible,
   (visible) => {
-    if (visible) {
+    // Client-only: this fires during setup on the server (albums page passes
+    // `:is-visible="true"`), which would run `convertMovToMp4` on the server
+    // — fetching MOV files into Nitro memory, throwing on
+    // `document.createElement('video')`, retrying 3x, and mutating the
+    // module-level processing cache across requests.
+    if (visible && import.meta.client) {
       nextTick(() => {
         processLivePhotoWhenVisible()
       })

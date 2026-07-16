@@ -126,8 +126,22 @@ const updateScrollMetrics = () => {
   scrollTopInWall.value = -wrapper.getBoundingClientRect().top
 }
 
+// `currentPhotoIndex` (viewer store) indexes the raw `props.photos` list,
+// but the masonry wall is built from `masonryItems` (sorted/filtered
+// `displayPhotos`) — a different index space whenever sort isn't default or
+// a filter is active. Resolve by photo id so the pin and scroll-follow track
+// the correct item in either space.
+const masonryIndexById = computed(
+  () => new Map(masonryItems.value.map((entry, i) => [entry.photo.id, i])),
+)
+const currentMasonryIndex = computed(() => {
+  const id = props.photos[currentPhotoIndex.value]?.id
+  if (!id) return -1
+  return masonryIndexById.value.get(id) ?? -1
+})
+
 const pinnedIndex = computed(() =>
-  isViewerOpen.value || heroActive.value ? currentPhotoIndex.value : -1,
+  isViewerOpen.value || heroActive.value ? currentMasonryIndex.value : -1,
 )
 
 const renderedIndices = computed(() => {
@@ -375,8 +389,8 @@ onMounted(() => {
 
   nextTick(() => {
     updateScrollMetrics()
-    if (currentPhotoIndex.value) {
-      scrollToPhoto(currentPhotoIndex.value)
+    if (currentMasonryIndex.value >= 0) {
+      scrollToPhoto(currentMasonryIndex.value)
     }
   })
 })
@@ -390,8 +404,8 @@ const handleOpenViewer = (index: number) => {
   router.push(`/${displayPhotos.value[index]?.id}`)
 }
 
-const scrollToPhoto = (photoIndex: number) => {
-  const box = layout.value?.boxes[photoIndex]
+const scrollToPhoto = (masonryIndex: number) => {
+  const box = layout.value?.boxes[masonryIndex]
   const wrapper = masonryWrapper.value
   if (!box || !wrapper) return
 
@@ -405,10 +419,11 @@ const scrollToPhoto = (photoIndex: number) => {
   })
 }
 
-watch(currentPhotoIndex, (newIndex) => {
-  if (isViewerOpen.value && newIndex >= 0) {
+watch(currentPhotoIndex, () => {
+  const masonryIndex = currentMasonryIndex.value
+  if (isViewerOpen.value && masonryIndex >= 0) {
     nextTick(() => {
-      scrollToPhoto(newIndex)
+      scrollToPhoto(masonryIndex)
     })
   }
 })
@@ -472,6 +487,9 @@ watch(currentPhotoIndex, (newIndex) => {
           class="relative"
           :style="{ height: `${layout.totalHeight}px` }"
         >
+          <!-- Invariant: layout.boxes[i] is index-aligned with masonryItems[i] —
+               both derive from masonryItems in the same computed pass, so `i`
+               here is always a masonry index, never a raw-photos index. -->
           <div
             v-for="i in renderedIndices"
             :key="masonryItems[i]!.photo.id"

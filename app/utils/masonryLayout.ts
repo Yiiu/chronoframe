@@ -61,9 +61,9 @@ export function computeMasonryLayout(opts: {
   const columnWidth =
     (opts.containerWidth - (columnCount - 1) * opts.gap) / columnCount
 
-  const heights = new Array<number>(columnCount).fill(0)
+  const heights = Array.from({ length: columnCount }, () => 0)
   heights[0] = opts.firstColumnOffset
-  const counts = new Array<number>(columnCount).fill(0)
+  const counts = Array.from({ length: columnCount }, () => 0)
 
   const boxes = opts.aspectRatios.map((aspectRatio): MasonryItemBox => {
     let column = 0

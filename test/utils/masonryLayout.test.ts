@@ -5,7 +5,7 @@ import {
   computeWindowRange,
   findAnchorIndex,
   type MasonryItemBox,
-} from '../../app/utils/masonryLayout'
+} from '~/utils/masonryLayout'
 
 describe('computeColumnCount', () => {
   // Replicates @yeger countIteratively: consumed starts at -gap, adds

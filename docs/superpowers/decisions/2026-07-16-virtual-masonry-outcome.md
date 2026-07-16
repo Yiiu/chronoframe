@@ -40,3 +40,5 @@ Not testable locally: Live Photo remount reuse (no Live Photos in the dev librar
 - `app/pages/dashboard/photos.vue` and `app/pages/albums/[albumId].vue` also consume `MasonryItem`/`MasonryItemPhoto`; they now pass `:is-visible="true"` (always-visible, non-windowed contexts).
 - The two perf-fix commits (`f5ddab1`, `dea93c8`) were not in the plan — they came out of the plan's own "profile before changing design" escalation in Task 6, and both passed dedicated code review.
 - Windows note: `pnpm build` fails silently under cmd because the script uses POSIX env syntax (`NODE_OPTIONS="..." nuxt build`); build via Git Bash or `NODE_OPTIONS=... pnpm exec nuxt build`. Pre-existing issue, not addressed on this branch.
+- The albums page's entrance stagger now plays once per photo per session (shared `enteredIds`) instead of replaying on every visit — accepted.
+- Final review found and fixed two SSR defects on the albums page (cross-request grid-memory state; server-side Live Photo conversion) plus an index-space bug in the hero pin/scroll-follow under non-default sort/filter — all fixed in this commit.
