@@ -79,7 +79,7 @@ const onError = () => {
     :style="style"
   >
     <ThumbHash
-      v-if="thumbhash"
+      v-if="thumbhash && !instant"
       :thumbhash="thumbhash"
       :class="twMerge('absolute inset-0 scale-110 blur-sm', thumbhashClass)"
     />

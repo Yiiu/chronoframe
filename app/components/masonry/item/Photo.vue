@@ -25,6 +25,15 @@ const photoRef = ref<HTMLElement>()
 const videoRef = useDomRef()
 
 const isHovering = ref(false)
+// Lazy-mount the hover info overlay: its subtree (Icons, UBadge loop) is
+// pure waste on every windowed mount since it's only ever shown on desktop
+// hover. Mount it once on first hover and keep it mounted thereafter.
+const overlayEverShown = ref(false)
+// Lags `isHovering` by two rAFs on the mounting hover so the shown-state
+// classes are applied a tick after mount, letting the CSS transition play
+// instead of snapping in instantly. Equals `isHovering` on every hover
+// after the first (element already mounted, no rAF delay needed).
+const overlayShown = ref(false)
 const isVideoPlaying = ref(false)
 const isVideoLoaded = ref(false)
 const videoBlob = ref<Blob | null>(null)
@@ -63,6 +72,22 @@ const shouldShowInfoOverlay = computed(() => {
   return isVideoLoaded.value
 })
 
+watch(isHovering, (hovering) => {
+  if (hovering) {
+    // Wait two rAFs so the v-if mount (if this is the first hover) commits
+    // and paints with the "hidden" classes before we flip to "shown" —
+    // otherwise the browser coalesces both class states into one frame and
+    // the slide-in transition never plays.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (isHovering.value) overlayShown.value = true
+      })
+    })
+  } else {
+    overlayShown.value = false
+  }
+})
+
 watch(
   () => props.isVisible,
   (visible) => {
@@ -92,6 +117,7 @@ const handleMouseEnter = async () => {
   if (isMobile.value) return
 
   isHovering.value = true
+  overlayEverShown.value = true
 
   if (!props.photo.isLivePhoto || !props.photo.livePhotoVideoUrl) return
 
@@ -521,10 +547,11 @@ onUnmounted(() => {
 
       <!-- Photo info overlay (bottom) -->
       <div
+        v-if="overlayEverShown"
         v-show="shouldShowInfoOverlay"
         class="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/60 to-transparent p-3 transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]"
         :class="
-          shouldShowInfoOverlay && isHovering && !isMobile
+          shouldShowInfoOverlay && overlayShown && !isMobile
             ? 'translate-y-0 opacity-100'
             : 'translate-y-full opacity-0'
         "
