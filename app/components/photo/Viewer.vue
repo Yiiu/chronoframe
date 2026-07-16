@@ -89,6 +89,10 @@ const longPressTimer = ref<NodeJS.Timeout | null>(null)
 // Import LivePhoto processor
 const { convertMovToMp4, getProcessingState } = useLivePhotoProcessor()
 
+const { pendingHero } = storeToRefs(useViewerState())
+// True while a hero fly-in owns the motion for the current photo's slide.
+const isHeroOpen = computed(() => !!pendingHero.value)
+
 // Computed
 const currentPhoto = computed(() => props.photos[props.currentIndex])
 const isMobile = useMediaQuery('(max-width: 768px)')
@@ -547,7 +551,7 @@ const swiperModules = [Navigation, Keyboard, Virtual]
         :initial="{ opacity: 0 }"
         :animate="{ opacity: 1 }"
         :exit="{ opacity: 0 }"
-        :transition="{ duration: 0.3 }"
+        :transition="{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }"
         class="fixed inset-0 bg-white/50 dark:bg-black/50 backdrop-blur-2xl z-50"
         @click="emit('close')"
       />
@@ -589,7 +593,10 @@ const swiperModules = [Navigation, Keyboard, Virtual]
           :class="isMobile ? 'flex-col' : 'flex-row'"
         >
           <!-- 图片显示区域 -->
-          <div class="z-10 flex min-h-0 min-w-0 flex-1 flex-col">
+          <div
+            class="z-10 flex min-h-0 min-w-0 flex-1 flex-col"
+            data-hero-viewport
+          >
             <div class="group relative flex min-h-0 min-w-0 flex-1">
               <!-- 顶部工具栏 -->
               <motion.div
@@ -691,8 +698,16 @@ const swiperModules = [Navigation, Keyboard, Virtual]
                   class="flex items-center justify-center"
                 >
                   <motion.div
-                    :initial="{ opacity: 0.5, scale: 0.95 }"
-                    :animate="{ opacity: 1, scale: 1 }"
+                    :initial="
+                      isHeroOpen && index === currentIndex
+                        ? { opacity: 0 }
+                        : { opacity: 0.5, scale: 0.95 }
+                    "
+                    :animate="
+                      isHeroOpen && index === currentIndex
+                        ? { opacity: 1 }
+                        : { opacity: 1, scale: 1 }
+                    "
                     :exit="{ opacity: 0, scale: 0.95 }"
                     :transition="{ type: 'spring', duration: 0.4, bounce: 0 }"
                     class="relative flex h-full w-full items-center justify-center"
