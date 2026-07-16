@@ -23,9 +23,10 @@ export const useViewerState = defineStore('photo-viewer-state', () => {
   }
 
   // `heroActive`: the current viewer session was opened via a hero fly-in, so the
-  // current slide's opacity transitions instantly (the overlay owns the motion).
-  // `heroCovering`: the overlay is still flying and masking the destination slide,
-  // which must stay invisible until the overlay hands off at settle.
+  // current slide skips its scale entrance (the overlay owns the photo's motion).
+  // `heroCovering`: the overlay is still flying — the current slide's PHOTO pixels
+  // stay masked (ProgressiveImage imageHidden) until hand-off at settle, while the
+  // slide's thumbhash wash fades in normally with the rest of the viewer chrome.
   const heroActive = ref(false)
   const heroCovering = ref(false)
 

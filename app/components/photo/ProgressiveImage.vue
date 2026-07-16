@@ -23,6 +23,11 @@ interface Props {
   isLivePhoto?: boolean
   livePhotoVideoUrl?: string
   isHDR?: boolean
+  // Hide the photo pixels (thumbnail img + WebGL canvas) while keeping the
+  // full-bleed thumbhash wash visible. Used by the hero transition: the flying
+  // overlay owns the photo, but the background wash must fade in with the
+  // viewer chrome or the backdrop visibly brightens when the flight ends.
+  imageHidden?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -43,6 +48,7 @@ const props = withDefaults(defineProps<Props>(), {
   isLivePhoto: false,
   livePhotoVideoUrl: '',
   isHDR: false,
+  imageHidden: false,
 })
 
 const containerRef = ref<HTMLDivElement>()
@@ -175,12 +181,23 @@ onUnmounted(() => {
       class="absolute inset-0 w-full h-full object-contain"
     /> -->
     <!-- use <ThumbImage /> instead -->
+    <!-- imageHidden 时垫在下面的等价 thumbhash 纱：与 ThumbImage 内部的那层
+         渲染完全一致，保证 settle 揭示照片的瞬间背景像素零变化 -->
+    <ThumbHash
+      v-if="imageHidden && thumbhash"
+      :thumbhash="thumbhash"
+      class="absolute inset-0 scale-110 blur-sm opacity-50"
+    />
+
     <ThumbImage
       v-if="showThumbnail"
       :src="thumbnailSrc"
       :thumbhash="thumbhash"
       :alt="alt || $t('ui.photo.altFallback')"
-      class="absolute inset-0 w-full h-full object-contain"
+      :class="
+        'absolute inset-0 w-full h-full object-contain' +
+        (imageHidden ? ' opacity-0' : '')
+      "
       thumbhash-class="opacity-50"
       image-contain
     />
@@ -190,7 +207,7 @@ onUnmounted(() => {
       v-if="showWebGLViewer"
       ref="webglViewerRef"
       :src="currentSrc!"
-      :class="className"
+      :class="className + (imageHidden ? ' opacity-0' : '')"
       class="w-full h-full"
       :width="width"
       :height="height"

@@ -89,12 +89,16 @@ const longPressTimer = ref<NodeJS.Timeout | null>(null)
 // Import LivePhoto processor
 const { convertMovToMp4, getProcessingState } = useLivePhotoProcessor()
 
-// Hero coordination (see stores/viewer.ts):
-// - heroActive: this open was a hero fly-in → the current slide's opacity is
-//   driven instantly (the flying overlay owns the visible motion).
-// - heroCovering: the overlay is still flying → keep the current slide invisible
-//   until it hands off at settle, otherwise both images show at once (ghosting).
-const { heroActive, heroCovering } = storeToRefs(useViewerState())
+// Hero coordination (see stores/viewer.ts). heroActive/heroCovering are set by
+// startEntry on the tick AFTER the viewer mounts, so mount-time decisions must
+// also consult pendingHero (set synchronously at click-time):
+// - heroSession: this open is/was a hero fly-in → the current slide skips the
+//   scale entrance and fades in with the backdrop (the overlay owns the photo).
+// - heroMasking: the overlay is (about to be) flying → keep only the PHOTO
+//   pixels hidden until hand-off; the slide's thumbhash wash fades in normally.
+const { heroActive, heroCovering, pendingHero } = storeToRefs(useViewerState())
+const heroSession = computed(() => heroActive.value || !!pendingHero.value)
+const heroMasking = computed(() => heroCovering.value || !!pendingHero.value)
 
 // Computed
 const currentPhoto = computed(() => props.photos[props.currentIndex])
@@ -705,21 +709,20 @@ const swiperModules = [Navigation, Keyboard, Virtual]
                   :virtual-index="index"
                   class="flex items-center justify-center"
                 >
+                  <!-- Hero open: the slide (含全幅 thumbhash 底纱) 随背景层正常淡入，
+                       只有照片像素本身通过 image-hidden 被遮罩到 settle —— 否则
+                       settle 瞬间底纱突然出现会让背景亮度跳变 -->
                   <motion.div
                     :initial="
-                      heroActive && index === currentIndex
+                      heroSession && index === currentIndex
                         ? { opacity: 0 }
                         : { opacity: 0.5, scale: 0.95 }
                     "
-                    :animate="
-                      heroCovering && index === currentIndex
-                        ? { opacity: 0 }
-                        : { opacity: 1, scale: 1 }
-                    "
+                    :animate="{ opacity: 1, scale: 1 }"
                     :exit="{ opacity: 0, scale: 0.95 }"
                     :transition="
-                      heroActive && index === currentIndex
-                        ? { duration: 0 }
+                      heroSession && index === currentIndex
+                        ? { duration: 0.3 }
                         : { type: 'spring', duration: 0.4, bounce: 0 }
                     "
                     class="relative flex h-full w-full items-center justify-center"
@@ -744,6 +747,7 @@ const swiperModules = [Navigation, Keyboard, Virtual]
                       }"
                       :loading-indicator-ref="loadingIndicatorRef || null"
                       :is-current-image="index === currentIndex"
+                      :image-hidden="heroMasking && index === currentIndex"
                       :src="photo.originalUrl!"
                       :thumbnail-src="photo.thumbnailUrl!"
                       :thumbhash="photo.thumbnailHash"
