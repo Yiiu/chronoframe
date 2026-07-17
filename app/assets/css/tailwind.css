@@ -1,6 +1,14 @@
 @import 'tailwindcss';
 @import '@nuxt/ui';
 
+html {
+  /* Keep layout width identical whether the root scrollbar is present or not.
+     The viewer locks body scroll (Viewer.vue), and without a reserved gutter
+     the scrollbar's disappearance widens the masonry wall mid-session — the
+     hero return flight then lands on stale, pre-relayout coordinates. */
+  scrollbar-gutter: stable;
+}
+
 :root {
   /* New text-autospace property */
   /* see docs: https://developer.mozilla.org/en-US/docs/Web/CSS/text-autospace */
