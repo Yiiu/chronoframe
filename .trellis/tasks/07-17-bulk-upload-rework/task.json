@@ -3,7 +3,7 @@
   "name": "bulk-upload-rework",
   "title": "Bulk upload rework: virtualized picker, batch status polling, summary progress panel",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,

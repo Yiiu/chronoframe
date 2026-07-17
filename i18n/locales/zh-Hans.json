@@ -561,6 +561,7 @@
       },
       "uploader": {
         "label": "拖放或点击选择照片",
+        "compactLabel": "拖放或点击添加更多照片",
         "description": "支持 JPEG、PNG、HEIC 格式照片，以及 MOV 格式 Live Photo 视频，单个文件最大 {maxSize}MB"
       },
       "toolbar": {
@@ -647,6 +648,18 @@
         "buttons": {
           "clear": "清空选择",
           "upload": "上传 {count} 个文件"
+        },
+        "duplicates": {
+          "badge": "重复",
+          "checking": "正在查重…",
+          "remove": "剔除重复项（{count}）",
+          "confirmTitle": "选择中包含重复文件",
+          "confirmDescription": "所选文件中有 {count} 个已存在于图库，服务端会跳过或拒绝这些文件。仍要上传吗？",
+          "confirmCancel": "取消",
+          "confirmUpload": "仍然上传"
+        },
+        "list": {
+          "remove": "移除文件"
         },
         "footer": {
           "noSelection": "请选择要上传的照片",
@@ -823,8 +836,10 @@
           "skipped": "跳过",
           "blocked": "被阻止"
         },
+        "empty": "没有进行中的上传",
         "summary": "{completed} 完成, {error} 失败, {skipped} 跳过, {blocked} 阻止",
         "actions": {
+          "retryFailed": "重试失败项",
           "clearCompleted": "清除已完成",
           "clearAll": "清除全部",
           "goToQueue": "队列管理"

@@ -487,6 +487,7 @@
       },
       "uploader": {
         "label": "拖曳或點擊選擇相片",
+        "compactLabel": "拖曳或點擊新增更多相片",
         "description": "支援 JPEG、PNG、HEIC 格式的相片，以及 MOV 格式的實況相片影片。每個檔案的最大大小：{maxSize}MB"
       },
       "toolbar": {
@@ -573,6 +574,18 @@
         "buttons": {
           "clear": "清除選擇",
           "upload": "上傳 {count} 個檔案"
+        },
+        "duplicates": {
+          "badge": "重複",
+          "checking": "正在檢查重複…",
+          "remove": "移除重複項（{count}）",
+          "confirmTitle": "選擇中包含重複檔案",
+          "confirmDescription": "所選檔案中有 {count} 個已存在於圖庫，伺服器會略過或拒絕這些檔案。仍要上傳嗎？",
+          "confirmCancel": "取消",
+          "confirmUpload": "仍然上傳"
+        },
+        "list": {
+          "remove": "移除檔案"
         },
         "footer": {
           "noSelection": "請選擇相片進行上傳",
@@ -749,8 +762,10 @@
           "skipped": "跳過",
           "blocked": "被阻止"
         },
+        "empty": "沒有進行中的上傳",
         "summary": "{completed} 完成, {error} 失敗, {skipped} 跳過, {blocked} 阻止",
         "actions": {
+          "retryFailed": "重試失敗項",
           "clearCompleted": "清除已完成",
           "clearAll": "清除全部",
           "goToQueue": "佇列管理"

@@ -113,4 +113,8 @@ channel:
 packages:
   webgl-image:
     path: packages/webgl-image
+  # The Nuxt app itself (app/ + server/). Registered so its spec layers under
+  # .trellis/spec/app/ are discoverable by get_context --mode packages.
+  app:
+    path: .
 default_package: @chronoframe/webgl-image

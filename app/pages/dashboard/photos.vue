@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { FormSubmitEvent, TableColumn } from '@nuxt/ui'
-import type { Photo, PipelineQueueItem } from '~~/server/utils/db'
+import type { Photo } from '~~/server/utils/db'
 import { h, resolveComponent } from 'vue'
 import { Icon, UBadge } from '#components'
 import ThumbImage from '~/components/ui/ThumbImage.vue'
@@ -102,40 +102,6 @@ const fetchReactions = async (photoIds: string[]) => {
     reactionsLoading.value = false
   }
 }
-
-interface UploadingFile {
-  file: File
-  fileName: string
-  fileId: string
-  status:
-    | 'waiting'
-    | 'preparing'
-    | 'uploading'
-    | 'processing'
-    | 'completed'
-    | 'error'
-    | 'skipped'
-    | 'blocked'
-  stage?: PipelineQueueItem['statusStage'] | null
-  progress?: number
-  error?: string
-  warning?: string
-  taskId?: number
-  signedUrlResponse?: { signedUrl: string; fileKey: string; expiresIn: number }
-  uploadProgress?: {
-    loaded: number
-    total: number
-    percentage: number
-    speed?: number
-    timeRemaining?: number
-    speedText?: string
-    timeRemainingText?: string
-  }
-  canAbort?: boolean
-  abortUpload?: () => void
-}
-
-const uploadingFiles = ref<Map<string, UploadingFile>>(new Map())
 
 interface EditFormState {
   title: string
@@ -262,270 +228,28 @@ const formattedCoordinates = computed(() => {
   }
 })
 
-const uploadImage = async (
-  file: File,
-  existingFileId?: string,
-  eraseLocationOnUpload?: boolean,
-) => {
-  const fileName = file.name
-  const fileId = existingFileId || `${Date.now()}-${fileName}`
-
-  const uploadManager = useUpload({
-    timeout: 10 * 60 * 1000, // 10分钟超时
-  })
-
-  // 获取或创建 uploadingFile
-  let uploadingFile = uploadingFiles.value.get(fileId)
-  if (!uploadingFile) {
-    uploadingFile = {
-      file,
-      fileName,
-      fileId,
-      status: 'preparing',
-      canAbort: false,
-      abortUpload: () => uploadManager.abortUpload(),
-    }
-    uploadingFiles.value.set(fileId, uploadingFile)
-  } else {
-    // 更新现有条目的状态和回调
-    uploadingFile.status = 'preparing'
-    uploadingFile.canAbort = false
-    uploadingFile.warning = undefined
-    uploadingFile.abortUpload = () => uploadManager.abortUpload()
-    uploadingFiles.value = new Map(uploadingFiles.value)
-  }
-
-  try {
-    // 第一步：获取预签名 URL
-    uploadingFile.status = 'preparing'
-    const signedUrlResponse = await $fetch('/api/photos', {
-      method: 'POST',
-      body: {
-        fileName: file.name,
-        contentType: file.type,
-      },
-    })
-
-    uploadingFile.signedUrlResponse = signedUrlResponse
-
-    // 检查是否为跳过模式（重复文件）
-    if (signedUrlResponse.skipped) {
-      uploadingFile.status = 'skipped'
-      uploadingFile.progress = 100
-      uploadingFile.canAbort = false
-      uploadingFile.error =
-        signedUrlResponse.message ||
-        $t('upload.duplicate.skip.message', { fileName })
-
-      toast.add({
-        title: signedUrlResponse.title || $t('upload.duplicate.skip.title'),
-        description:
-          signedUrlResponse.message ||
-          $t('upload.duplicate.skip.message', { fileName }),
-        color: 'warning',
-      })
-
-      uploadingFiles.value = new Map(uploadingFiles.value)
-      return
-    }
-
-    if (signedUrlResponse.warningInfo) {
-      uploadingFile.error = undefined
-      uploadingFile.warning =
-        signedUrlResponse.warningInfo.warning ||
-        signedUrlResponse.warningInfo.message
-
-      uploadingFiles.value = new Map(uploadingFiles.value)
-    }
-
-    uploadingFile.status = 'uploading'
-    uploadingFile.canAbort = true
-    uploadingFile.progress = 0
-    uploadingFiles.value = new Map(uploadingFiles.value)
-
-    // 第二步：使用 composable 上传文件到存储
-    await uploadManager.uploadFile(file, signedUrlResponse.signedUrl, {
-      onProgress: (progress: UploadProgress) => {
-        uploadingFile.progress = progress.percentage
-        uploadingFile.uploadProgress = {
-          loaded: progress.loaded,
-          total: progress.total,
-          percentage: progress.percentage,
-          speed: progress.speed,
-          timeRemaining: progress.timeRemaining,
-          speedText: progress.speed ? `${formatBytes(progress.speed)}/s` : '',
-          timeRemainingText: progress.timeRemaining
-            ? dayjs.duration(progress.timeRemaining, 'seconds').humanize()
-            : '',
-        }
-        uploadingFiles.value = new Map(uploadingFiles.value)
-      },
-      onStatusChange: (status: string) => {
-        uploadingFile.canAbort = status === 'uploading'
-        uploadingFiles.value = new Map(uploadingFiles.value)
-      },
-      onSuccess: async (_xhr: XMLHttpRequest) => {
-        // 第三步：上传完成，提交到队列任务
-        uploadingFile.status = 'processing'
-        uploadingFile.progress = 100
-        uploadingFile.canAbort = false
-        uploadingFile.stage = null // 重置 stage，准备显示任务状态
-        uploadingFiles.value = new Map(uploadingFiles.value)
-
-        try {
-          // 检查是否为MOV视频文件（通过MIME类型或文件扩展名）
-          const isMovFile =
-            file.type === 'video/quicktime' ||
-            file.type === 'video/mp4' ||
-            file.name.toLowerCase().endsWith('.mov')
-
-          const resp = await $fetch('/api/queue/add-task', {
-            method: 'POST',
-            body: {
-              payload: {
-                type: isMovFile ? 'live-photo-video' : 'photo',
-                storageKey: signedUrlResponse.fileKey,
-                ...(isMovFile
-                  ? {}
-                  : {
-                      eraseLocation:
-                        eraseLocationOnUpload ??
-                        systemUploadEraseLocationDefault.value,
-                    }),
-              },
-              priority: isMovFile ? 0 : 1, // Live Photo 视频优先级更低，确保图片优先处理
-              maxAttempts: 3,
-            },
-          })
-
-          if (resp.success) {
-            uploadingFile.taskId = resp.taskId
-            uploadingFile.status = 'processing'
-            uploadingFiles.value = new Map(uploadingFiles.value)
-
-            // 开始任务状态检查
-            startTaskStatusCheck(resp.taskId, fileId)
-          } else {
-            uploadingFile.status = 'error'
-            uploadingFile.error = $t(
-              'dashboard.photos.messages.taskSubmitFailed',
-            )
-            uploadingFiles.value = new Map(uploadingFiles.value)
-          }
-        } catch (processError: any) {
-          uploadingFile.status = 'error'
-          uploadingFile.error = `${$t('dashboard.photos.messages.taskSubmitFailed')}: ${processError.message}`
-          uploadingFile.canAbort = false
-          uploadingFiles.value = new Map(uploadingFiles.value)
-        }
-      },
-      onError: (error: string) => {
-        const isConflict = /\b409\b|Conflict/i.test(error)
-
-        if (isConflict) {
-          uploadingFile.status = 'blocked'
-          uploadingFile.error = $t('upload.duplicate.block.message', {
-            fileName,
-          })
-        } else {
-          uploadingFile.status = 'error'
-          uploadingFile.error = error
-        }
-
-        uploadingFile.canAbort = false
-        uploadingFiles.value = new Map(uploadingFiles.value)
-      },
-    })
-  } catch (error: any) {
-    uploadingFile.status = 'error'
-    uploadingFile.canAbort = false
-
-    // 处理重复文件阻止模式的错误
-    const isDuplicateConflict =
-      (error.statusCode === 409 ||
-        error.status === 409 ||
-        error.response?.status === 409) &&
-      (error.data?.duplicate || /Conflict|409/i.test(error.message || ''))
-
-    if (isDuplicateConflict) {
-      uploadingFile.status = 'blocked'
-      uploadingFile.error =
-        error.data.message || $t('upload.duplicate.block.message', { fileName })
-
-      toast.add({
-        title: error.data?.title || $t('upload.duplicate.block.title'),
-        description:
-          error.data?.message ||
-          $t('upload.duplicate.block.message', { fileName }),
-        color: 'error',
-      })
-    } else {
-      // 其他错误
-      uploadingFile.error =
-        error.message || $t('dashboard.photos.messages.uploadFailed')
-    }
-
-    uploadingFiles.value = new Map(uploadingFiles.value)
-
-    // 提供更详细的错误信息
-    if (error.response?.status === 401) {
-      uploadingFile.error = $t('dashboard.photos.errors.uploadUnauthorized')
-    } else if (error.message?.includes('CORS')) {
-      uploadingFile.error = $t('dashboard.photos.errors.uploadCorsError')
-    } else if (
-      error.message?.includes('NetworkError') ||
-      error.name === 'TypeError'
-    ) {
-      uploadingFile.error = $t('dashboard.photos.errors.uploadNetworkError')
-    } else if (error.message?.includes('上传到存储失败')) {
-      uploadingFile.error = $t('dashboard.photos.messages.uploadFailed')
-    }
-
-    uploadingFiles.value = new Map(uploadingFiles.value)
-  }
-}
-
 const toast = useToast()
-const selectedFiles = ref<File[]>([])
+
+// 上传队列状态机（选择校验、并发上传、共享轮询器、beforeunload 拦截）
+const {
+  files: uploadingFiles,
+  version: uploadQueueVersion,
+  uploadFiles,
+  retryAllFailed: retryAllFailedUploads,
+  removeFile: removeUploadingFile,
+  clearCompleted: clearCompletedUploads,
+  clearAll: clearAllUploads,
+} = useUploadQueue({
+  maxFileSizeMB,
+  eraseLocationDefault: systemUploadEraseLocationDefault,
+  onTaskCompleted: () => refresh(),
+})
+
+// 选择集、查重、缩略图都由 UploadSlideover 自己持有；
+// 页面只负责开合弹窗，以及把最终选定的文件交给上传队列
 const isUploadSlideoverOpen = ref(false)
-const uploadEraseLocationEnabled = ref(systemUploadEraseLocationDefault.value)
-
-const hasSelectedFiles = computed(() => selectedFiles.value.length > 0)
-
-const selectedFilesTotalSize = computed(() =>
-  selectedFiles.value.reduce((total, file) => total + (file?.size || 0), 0),
-)
-
-const selectedFilesTotalSizeLabel = computed(() =>
-  selectedFilesTotalSize.value > 0
-    ? formatBytes(selectedFilesTotalSize.value)
-    : '0 B',
-)
-
-const selectedFilesSummary = computed(() => {
-  if (!selectedFiles.value.length) {
-    return $t('dashboard.photos.slideover.footer.noSelection')
-  }
-
-  return $t('dashboard.photos.slideover.footer.prepared', {
-    count: selectedFiles.value.length,
-    size: selectedFilesTotalSizeLabel.value,
-  })
-})
-
-const clearSelectedFiles = () => {
-  selectedFiles.value = []
-}
-
-watch(isUploadSlideoverOpen, (open) => {
-  if (!open) {
-    clearSelectedFiles()
-    uploadEraseLocationEnabled.value = systemUploadEraseLocationDefault.value
-  }
-})
 
 const openUploadSlideover = () => {
-  uploadEraseLocationEnabled.value = systemUploadEraseLocationDefault.value
   isUploadSlideoverOpen.value = true
 }
 
@@ -615,180 +339,6 @@ watch(
   },
   { immediate: true },
 )
-
-// 状态检查间隔 Map，每个任务对应一个定时器
-const statusIntervals = ref<Map<number, NodeJS.Timeout>>(new Map())
-
-// 启动任务状态检查
-const startTaskStatusCheck = (taskId: number, fileId: string) => {
-  const intervalId = setInterval(async () => {
-    try {
-      const response = await $fetch(`/api/queue/stats/${taskId}`)
-      const uploadingFile = uploadingFiles.value.get(fileId)
-
-      if (!uploadingFile) {
-        clearInterval(intervalId)
-        statusIntervals.value.delete(taskId)
-        return
-      }
-
-      // 更新任务状态
-      uploadingFile.stage =
-        response.status === 'in-stages' ? response.statusStage : null
-      uploadingFiles.value = new Map(uploadingFiles.value)
-
-      if (response.status === 'completed') {
-        // 任务完成
-        uploadingFile.status = 'completed'
-        uploadingFile.stage = null
-        uploadingFiles.value = new Map(uploadingFiles.value)
-
-        // 停止状态检查
-        clearInterval(intervalId)
-        statusIntervals.value.delete(taskId)
-
-        // 不再显示单独的成功提示，由上传组件统一处理
-
-        // 刷新照片列表
-        await refresh()
-
-        // 2秒后从界面移除成功的任务
-        // setTimeout(() => {
-        //   uploadingFiles.value.delete(fileId)
-        //   uploadingFiles.value = new Map(uploadingFiles.value)
-        // }, 2000)
-      } else if (response.status === 'failed') {
-        // 任务失败
-        uploadingFile.status = 'error'
-        uploadingFile.error = `${$t('dashboard.photos.messages.error')}: ${response.errorMessage || $t('dashboard.photos.table.cells.unknown')}`
-        uploadingFile.stage = null
-        uploadingFiles.value = new Map(uploadingFiles.value)
-
-        // 停止状态检查
-        clearInterval(intervalId)
-        statusIntervals.value.delete(taskId)
-
-        // 错误信息已在上传组件中显示，不需要额外通知
-        // 失败的任务不自动移除，让用户查看错误信息
-      }
-    } catch (error) {
-      console.error('检查任务状态失败:', error)
-
-      // 如果检查状态失败，清理定时器
-      clearInterval(intervalId)
-      statusIntervals.value.delete(taskId)
-
-      const uploadingFile = uploadingFiles.value.get(fileId)
-      if (uploadingFile) {
-        uploadingFile.status = 'error'
-        uploadingFile.error = $t(
-          'dashboard.photos.messages.taskStatusCheckFailed',
-        )
-        uploadingFiles.value = new Map(uploadingFiles.value)
-      }
-    }
-  }, 1000) // 每秒检查一次
-
-  statusIntervals.value.set(taskId, intervalId)
-}
-
-// 手动移除上传任务
-const removeUploadingFile = (fileId: string) => {
-  const uploadingFile = uploadingFiles.value.get(fileId)
-
-  // 如果任务还在进行中，先清理定时器
-  if (uploadingFile?.taskId) {
-    const intervalId = statusIntervals.value.get(uploadingFile.taskId)
-    if (intervalId) {
-      clearInterval(intervalId)
-      statusIntervals.value.delete(uploadingFile.taskId)
-    }
-  }
-
-  // 从列表中移除
-  uploadingFiles.value.delete(fileId)
-  uploadingFiles.value = new Map(uploadingFiles.value)
-}
-
-// 批量清除已完成和错误的任务
-const clearCompletedTasks = () => {
-  const toRemove: string[] = []
-
-  for (const [fileId, uploadingFile] of uploadingFiles.value) {
-    if (
-      uploadingFile.status === 'completed' ||
-      uploadingFile.status === 'error'
-    ) {
-      toRemove.push(fileId)
-
-      // 清理可能存在的定时器
-      if (uploadingFile.taskId) {
-        const intervalId = statusIntervals.value.get(uploadingFile.taskId)
-        if (intervalId) {
-          clearInterval(intervalId)
-          statusIntervals.value.delete(uploadingFile.taskId)
-        }
-      }
-    }
-  }
-
-  toRemove.forEach((fileId) => {
-    uploadingFiles.value.delete(fileId)
-  })
-
-  uploadingFiles.value = new Map(uploadingFiles.value)
-
-  if (toRemove.length > 0) {
-    toast.add({
-      title: $t('dashboard.photos.uploadQueue.taskCleared'),
-      description: $t('dashboard.photos.uploadQueue.tasksCleared', {
-        count: toRemove.length,
-      }),
-      color: 'info',
-    })
-  }
-}
-
-// 清除已完成的上传
-const clearCompletedUploads = () => {
-  clearCompletedTasks()
-}
-
-// 清除所有上传
-const clearAllUploads = () => {
-  const toRemove: string[] = []
-
-  for (const [fileId, uploadingFile] of uploadingFiles.value) {
-    toRemove.push(fileId)
-
-    // 如果是正在上传的任务，先中止
-    if (uploadingFile.status === 'uploading' && uploadingFile.abortUpload) {
-      uploadingFile.abortUpload()
-    }
-
-    // 清理状态检查定时器
-    if (uploadingFile.taskId) {
-      const intervalId = statusIntervals.value.get(uploadingFile.taskId)
-      if (intervalId) {
-        clearInterval(intervalId)
-        statusIntervals.value.delete(uploadingFile.taskId)
-      }
-    }
-  }
-
-  uploadingFiles.value.clear()
-  uploadingFiles.value = new Map(uploadingFiles.value)
-
-  if (toRemove.length > 0) {
-    toast.add({
-      title: $t('dashboard.photos.uploadQueue.allTasksCleared'),
-      description: $t('dashboard.photos.uploadQueue.tasksCleared', {
-        count: toRemove.length,
-      }),
-      color: 'info',
-    })
-  }
-}
 
 const columns = computed<TableColumn<Photo>[]>(() => [
   {
@@ -1061,193 +611,19 @@ const columns = computed<TableColumn<Photo>[]>(() => [
   },
 ])
 
-// 文件验证函数
-const validateFile = (
-  file: File,
-): {
-  valid: boolean
-  error?: string
-  reason?: 'unsupported-format' | 'file-too-large'
-} => {
-  // 检查文件类型
-  const allowedTypes = [
-    'image/jpeg',
-    'image/png',
-    'image/heic',
-    'image/heif',
-    'video/quicktime', // MOV 文件
-  ]
-
-  const isValidImageType = allowedTypes.includes(file.type)
-  const isValidImageExtension = ['.heic', '.heif'].some((ext) =>
-    file.name.toLowerCase().endsWith(ext),
-  )
-  const isValidVideoExtension = file.name.toLowerCase().endsWith('.mov')
-
-  if (!isValidImageType && !isValidImageExtension && !isValidVideoExtension) {
-    return {
-      valid: false,
-      reason: 'unsupported-format',
-      error: $t('dashboard.photos.errors.unsupportedFormat', {
-        type: file.type,
-      }),
-    }
-  }
-
-  const maxSize = maxFileSizeMB.value * 1024 * 1024
-  if (file.size > maxSize) {
-    return {
-      valid: false,
-      reason: 'file-too-large',
-      error: $t('dashboard.photos.errors.fileTooLarge', {
-        size: (file.size / 1024 / 1024).toFixed(2),
-        maxSize: maxFileSizeMB.value,
-      }),
-    }
-  }
-
-  return { valid: true }
-}
-
-const handleUpload = async () => {
-  const fileList = selectedFiles.value
-
-  if (fileList.length === 0) {
+const handleUpload = (payload: { files: File[]; eraseLocation: boolean }) => {
+  if (payload.files.length === 0) {
     return
   }
 
-  const errors: string[] = []
-  let tooLargeCount = 0
-  let unsupportedCount = 0
-
-  // 先验证所有文件
-  const validFiles: File[] = []
-  const fileIdMapping = new Map<File, string>()
-
-  for (const file of fileList) {
-    const validation = validateFile(file)
-    if (!validation.valid) {
-      errors.push(`${file.name}: ${validation.error}`)
-      if (validation.reason === 'file-too-large') {
-        tooLargeCount += 1
-      } else if (validation.reason === 'unsupported-format') {
-        unsupportedCount += 1
-      }
-    } else {
-      validFiles.push(file)
-      // 为每个有效文件生成唯一ID
-      const fileId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${file.name}`
-      fileIdMapping.set(file, fileId)
-    }
-  }
-
-  if (validFiles.length === 0) {
-    if (tooLargeCount > 0 && unsupportedCount === 0) {
-      toast.add({
-        title: $t('upload.error.tooLarge.title'),
-        description: $t('dashboard.photos.errors.allFilesTooLarge', {
-          count: tooLargeCount,
-          maxSize: maxFileSizeMB.value,
-        }),
-        color: 'error',
-      })
-    } else {
-      toast.add({
-        title: $t('dashboard.photos.messages.error'),
-        description: $t('dashboard.photos.errors.allFilesValidationFailed'),
-        color: 'error',
-      })
-    }
-
-    return
-  }
-
-  if (tooLargeCount > 0) {
-    toast.add({
-      title: $t('upload.error.tooLarge.title'),
-      description: $t('dashboard.photos.errors.filesTooLargeSkipped', {
-        count: tooLargeCount,
-        maxSize: maxFileSizeMB.value,
-      }),
-      color: 'warning',
-    })
-  } else if (unsupportedCount > 0) {
-    toast.add({
-      title: $t('dashboard.photos.errors.fileValidationFailed'),
-      description: $t('dashboard.photos.errors.filesUnsupportedSkipped', {
-        count: unsupportedCount,
-      }),
-      color: 'warning',
-    })
-  }
-
-  // 立即为所有有效文件创建队列条目，状态为 waiting
-  for (const file of validFiles) {
-    const fileId = fileIdMapping.get(file)!
-    const uploadingFile: UploadingFile = {
-      file,
-      fileName: file.name,
-      fileId,
-      status: 'waiting',
-      canAbort: false,
-    }
-    uploadingFiles.value.set(fileId, uploadingFile)
-  }
-
-  // 触发队列更新
-  uploadingFiles.value = new Map(uploadingFiles.value)
-
-  // 动态并发上传，始终保持 CONCURRENT_LIMIT 个文件在上传
-  const CONCURRENT_LIMIT = 3 // 限制同时上传的文件数量
-
-  // 创建文件队列
-  const fileQueue = [...validFiles]
-  const activeUploads = new Set<Promise<void>>()
-
-  // 启动上传任务的函数
-  const startUpload = async (file: File): Promise<void> => {
-    const fileId = fileIdMapping.get(file)!
-    try {
-      await uploadImage(file, fileId, uploadEraseLocationEnabled.value)
-    } catch (error: any) {
-      errors.push(`${file.name}: ${error.message || '上传失败'}`)
-      console.error('上传错误:', error)
-    }
-  }
-
-  // 处理队列的函数
-  const processQueue = async (): Promise<void> => {
-    while (fileQueue.length > 0 || activeUploads.size > 0) {
-      // 如果当前活跃上传数量小于限制，且队列中还有文件，则启动新的上传
-      while (activeUploads.size < CONCURRENT_LIMIT && fileQueue.length > 0) {
-        const file = fileQueue.shift()!
-        const uploadPromise = startUpload(file)
-
-        activeUploads.add(uploadPromise)
-
-        // 当上传完成时，从活跃集合中移除
-        uploadPromise.finally(() => {
-          activeUploads.delete(uploadPromise)
-        })
-      }
-
-      // 如果有活跃的上传，等待至少一个完成
-      if (activeUploads.size > 0) {
-        await Promise.race(activeUploads)
-      }
-    }
-  }
-
-  // 开始处理队列
-  await processQueue()
-
-  if (errors.length > 0) {
-    console.error('批量上传错误详情:', errors)
-  }
-
-  // 清空选中的文件
-  selectedFiles.value = []
+  // 先关弹窗：上传由页面级队列持有，关闭弹窗不中断上传，
+  // 后续进度交给右下角的 UploadQueuePanel 追踪
   isUploadSlideoverOpen.value = false
+
+  // 校验、入队与并发上传均由 useUploadQueue 处理（不 await，避免阻塞 UI）
+  void uploadFiles(payload.files, {
+    eraseLocation: payload.eraseLocation,
+  })
 }
 
 const openMetadataEditor = (photo: Photo) => {
@@ -2044,15 +1420,6 @@ watch(isImagePreviewOpen, (open) => {
     previewingPhoto.value = null
   }
 })
-
-// 清理定时器
-onUnmounted(() => {
-  // 清理所有状态检查定时器
-  statusIntervals.value.forEach((intervalId) => {
-    clearInterval(intervalId)
-  })
-  statusIntervals.value.clear()
-})
 </script>
 
 <template>
@@ -2089,135 +1456,21 @@ onUnmounted(() => {
         <!-- 上传队列容器 -->
         <UploadQueuePanel
           :uploading-files="uploadingFiles"
+          :version="uploadQueueVersion"
           @remove-file="removeUploadingFile"
+          @retry-failed="retryAllFailedUploads"
           @clear-completed="clearCompletedUploads"
           @clear-all="clearAllUploads"
           @go-to-queue="$router.push('/dashboard/queue')"
           class="shrink-0"
         />
 
-        <USlideover
+        <UploadSlideover
           v-model:open="isUploadSlideoverOpen"
-          :title="$t('dashboard.photos.slideover.title')"
-          :description="$t('dashboard.photos.slideover.description')"
-          :ui="{
-            content: 'sm:max-w-xl',
-            body: 'p-2',
-            header:
-              'px-6 py-5 border-b border-neutral-200 dark:border-neutral-800',
-            footer:
-              'px-6 py-5 border-t border-neutral-200 dark:border-neutral-800',
-          }"
-        >
-          <template #body>
-            <div class="space-y-4">
-              <UFileUpload
-                v-model="selectedFiles"
-                :label="$t('dashboard.photos.uploader.label')"
-                :description="
-                  $t('dashboard.photos.uploader.description', {
-                    maxSize: maxFileSizeMB,
-                  })
-                "
-                icon="tabler:cloud-upload"
-                layout="list"
-                size="xl"
-                accept="image/jpeg,image/png,image/heic,image/heif,video/quicktime,.mov"
-                multiple
-                highlight
-                dropzone
-                :file-delete="{ variant: 'soft', color: 'neutral' }"
-                :ui="{
-                  root: 'w-full',
-                  base: 'group relative flex flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-neutral-200/80 bg-white/90 px-6 py-12 text-center shadow-sm transition-all duration-300 hover:border-primary-400/80 hover:bg-primary-500/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60 dark:border-neutral-700/70 dark:bg-neutral-900/80',
-                  wrapper: 'flex flex-col items-center gap-2',
-                  label:
-                    'text-base font-semibold text-neutral-800 dark:text-neutral-100',
-                  description: 'text-sm text-neutral-500 dark:text-neutral-400',
-                  files: 'mt-2 flex w-full flex-col gap-2 overflow-y-auto',
-                  file: 'flex items-center justify-between gap-3 rounded-2xl border border-neutral-200/80 bg-white/80 px-4 py-3 text-left shadow-sm shadow-black/5 backdrop-blur-sm dark:border-neutral-800/80 dark:bg-neutral-900/70',
-                  fileLeadingAvatar:
-                    'ring-1 ring-white/80 dark:ring-neutral-800',
-                  fileWrapper: 'min-w-0 flex-1',
-                  fileName:
-                    'text-sm font-medium text-neutral-700 dark:text-neutral-100 truncate',
-                  fileSize: 'text-xs text-neutral-500 dark:text-neutral-400',
-                  fileTrailingButton: 'text-neutral-400 hover:text-error-500',
-                }"
-              />
-
-              <UCard
-                variant="soft"
-                class="border border-neutral-200/80 dark:border-neutral-800/80"
-              >
-                <div class="flex items-start justify-between gap-4">
-                  <div class="space-y-1">
-                    <p
-                      class="text-sm font-medium text-neutral-800 dark:text-neutral-100"
-                    >
-                      {{
-                        $t(
-                          'dashboard.photos.slideover.options.eraseLocation.label',
-                        )
-                      }}
-                    </p>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                      {{
-                        $t(
-                          'dashboard.photos.slideover.options.eraseLocation.description',
-                        )
-                      }}
-                    </p>
-                  </div>
-                  <USwitch v-model="uploadEraseLocationEnabled" />
-                </div>
-              </UCard>
-            </div>
-          </template>
-
-          <template #footer>
-            <div
-              class="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div
-                class="flex flex-col gap-1 text-sm text-neutral-500 dark:text-neutral-400"
-              >
-                <span>{{
-                  hasSelectedFiles
-                    ? selectedFilesSummary
-                    : $t('dashboard.photos.slideover.footer.noSelection')
-                }}</span>
-              </div>
-              <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-                <UButton
-                  variant="soft"
-                  color="neutral"
-                  class="w-full sm:w-auto"
-                  :disabled="!hasSelectedFiles"
-                  @click="clearSelectedFiles"
-                >
-                  {{ $t('dashboard.photos.slideover.buttons.clear') }}
-                </UButton>
-                <UButton
-                  color="primary"
-                  size="lg"
-                  class="w-full sm:w-auto"
-                  icon="tabler:upload"
-                  :disabled="!hasSelectedFiles"
-                  @click="handleUpload"
-                >
-                  {{
-                    hasSelectedFiles
-                      ? $t('dashboard.photos.slideover.buttons.upload', {
-                          count: selectedFiles.length,
-                        })
-                      : $t('dashboard.photos.buttons.upload')
-                  }}
-                </UButton>
-              </div>
-            </div>
-          </template>
-        </USlideover>
+          :max-file-size-mb="maxFileSizeMB"
+          :erase-location-default="systemUploadEraseLocationDefault"
+          @upload="handleUpload"
+        />
 
         <!-- 统合容器：工具栏 + 照片列表 -->
         <div

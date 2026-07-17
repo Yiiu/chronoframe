@@ -561,6 +561,7 @@
       },
       "uploader": {
         "label": "Drag and drop or click to select photos",
+        "compactLabel": "Drag and drop or click to add more photos",
         "description": "Supports JPEG, PNG, HEIC format photos, and MOV format Live Photo videos. Maximum file size: {maxSize}MB per file"
       },
       "toolbar": {
@@ -647,6 +648,18 @@
         "buttons": {
           "clear": "Clear Selection",
           "upload": "Upload {count} file(s)"
+        },
+        "duplicates": {
+          "badge": "Duplicate",
+          "checking": "Checking duplicates…",
+          "remove": "Remove duplicates ({count})",
+          "confirmTitle": "Duplicate files selected",
+          "confirmDescription": "{count} of the selected files already exist in the library and will be skipped or rejected by the server. Upload anyway?",
+          "confirmCancel": "Cancel",
+          "confirmUpload": "Upload anyway"
+        },
+        "list": {
+          "remove": "Remove file"
         },
         "footer": {
           "noSelection": "Please select photos to upload",
@@ -823,8 +836,10 @@
           "skipped": "skipped",
           "blocked": "blocked"
         },
+        "empty": "No uploads in progress",
         "summary": "{completed} completed, {error} failed, {skipped} skipped, {blocked} blocked",
         "actions": {
+          "retryFailed": "Retry Failed",
           "clearCompleted": "Clear Completed",
           "clearAll": "Clear All",
           "goToQueue": "Queue Management"

@@ -487,6 +487,7 @@
       },
       "uploader": {
         "label": "ドラッグアンドドロップするか、クリックして写真を選択します",
+        "compactLabel": "ドラッグアンドドロップするか、クリックして写真を追加します",
         "description": "JPEG、PNG、HEIC形式の写真、およびMOV形式のライブフォトビデオをサポート。ファイルあたりの最大サイズ：{maxSize}MB"
       },
       "toolbar": {
@@ -573,6 +574,18 @@
         "buttons": {
           "clear": "選択をクリア",
           "upload": "{count}個のファイルをアップロード"
+        },
+        "duplicates": {
+          "badge": "重複",
+          "checking": "重複を確認中…",
+          "remove": "重複を削除（{count}）",
+          "confirmTitle": "重複ファイルが選択されています",
+          "confirmDescription": "選択したファイルのうち{count}個はライブラリに既に存在します。サーバー側でスキップまたは拒否されます。それでもアップロードしますか？",
+          "confirmCancel": "キャンセル",
+          "confirmUpload": "それでもアップロード"
+        },
+        "list": {
+          "remove": "ファイルを削除"
         },
         "footer": {
           "noSelection": "アップロードする写真を選択してください",
@@ -749,8 +762,10 @@
           "skipped": "スキップ",
           "blocked": "ブロック"
         },
+        "empty": "進行中のアップロードはありません",
         "summary": "{completed} 完了, {error} 失敗, {skipped} スキップ, {blocked} ブロック",
         "actions": {
+          "retryFailed": "失敗を再試行",
           "clearCompleted": "完了済みを削除",
           "clearAll": "すべて削除",
           "goToQueue": "キュー管理"
