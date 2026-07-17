@@ -73,23 +73,9 @@ const dateRangeText = computed(() => {
   }
 })
 
-// 用于 MasonryWall 的照片数据
-const masonryItems = computed(() => {
-  return (
-    albumData.value?.photos?.map((photo: any, index: number) => ({
-      id: photo.id,
-      photo,
-      originalIndex: index,
-    })) ?? []
-  )
-})
-
-const isMobile = useMediaQuery('(max-width: 768px)')
-const columnWidth = computed(() => (isMobile.value ? 280 : 280))
-const maxColumns = computed(() => (isMobile.value ? 2 : 8))
-const minColumns = computed(() => (isMobile.value ? 2 : 2))
-
-const MASONRY_GAP = 4
+// 虚拟墙直接消费相册照片列表（与 viewer 的 scoped 列表同一份，
+// 索引空间一致，无需单独传 viewer-photos）
+const albumPhotos = computed(() => (albumData.value?.photos ?? []) as Photo[])
 
 const handleOpenViewer = (index: number) => {
   const photos = albumData.value?.photos
@@ -298,32 +284,12 @@ onBeforeMount(() => {
             </div>
           </div>
 
-          <MasonryWall
-            v-else
-            :items="masonryItems"
-            :column-width="columnWidth"
-            :gap="MASONRY_GAP"
-            :min-columns="minColumns"
-            :max-columns="maxColumns"
-            :ssr-columns="2"
-            :key-mapper="
-              (_item, _column, _row, index) =>
-                masonryItems[index]?.originalIndex ?? index
-            "
-          >
-            <template #default="{ item }">
-              <MasonryItem
-                v-if="item.photo && typeof item.originalIndex === 'number'"
-                :key="item.photo.id"
-                :photo="item.photo"
-                :index="item.originalIndex"
-                :is-visible="true"
-                :has-animated="false"
-                :first-screen-items="50"
-                @open-viewer="handleOpenViewer($event)"
-              />
-            </template>
-          </MasonryWall>
+          <ClientOnly v-else>
+            <MasonryVirtualWall
+              :photos="albumPhotos"
+              @open-viewer="handleOpenViewer"
+            />
+          </ClientOnly>
         </motion.div>
       </div>
     </template>

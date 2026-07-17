@@ -153,7 +153,6 @@ export default defineNuxtConfig({
         'dayjs/plugin/duration',
         'dayjs/plugin/localizedFormat',
         'dayjs/plugin/isBetween',
-        '@yeger/vue-masonry-wall',
         'motion-v',
         'swiper/vue',
         'swiper/modules',

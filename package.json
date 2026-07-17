@@ -50,7 +50,6 @@
     "@unhead/vue": "^2.1.15",
     "@vingle/bmp-js": "^0.2.5",
     "@vueuse/nuxt": "14.3.0",
-    "@yeger/vue-masonry-wall": "^6.1.1",
     "better-sqlite3": "^12.10.0",
     "dayjs-nuxt": "2.1.11",
     "drizzle-orm": "^0.45.2",

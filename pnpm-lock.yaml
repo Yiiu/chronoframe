@@ -50,9 +50,6 @@ importers:
       '@vueuse/nuxt':
         specifier: 14.3.0
         version: 14.3.0(magicast@0.3.5)(nuxt@4.4.8(8d83bf02ada9f445bd9adabdc627c236))(vue@3.5.35(typescript@5.9.3))
-      '@yeger/vue-masonry-wall':
-        specifier: ^6.1.1
-        version: 6.1.1(vue@3.5.35(typescript@5.9.3))
       better-sqlite3:
         specifier: ^12.10.0
         version: 12.10.0
@@ -4508,14 +4505,6 @@ packages:
     resolution: {integrity: sha512-bZpge9eSXwa4ToSiqJ7j6KRwhAsneMFoSz3LMWKQDkqimm3D/tbFlrklrs/IOqC8tEcYmXQZJ6N0UrjhBirVCg==}
     peerDependencies:
       vue: ^3.5.0
-
-  '@yeger/debounce@2.0.17':
-    resolution: {integrity: sha512-wz9ARkGnY25yToyaZaCz887aRxsIg96uI/waBLkV/Qfh9/VHP+C6uAFpOg8FPba0KMS2QYo2dhCOqPvCoDigyA==}
-
-  '@yeger/vue-masonry-wall@6.1.1':
-    resolution: {integrity: sha512-NjVk1zg+RKpOIa7cw8pm3R2yOm/pNmSH3aM1L2lSlvDuP7w7Wnou2ooEztgPUR6u5afvQmyx+WM6hTgqY+sRoQ==}
-    peerDependencies:
-      vue: ^3.5.19
 
   abbrev@3.0.1:
     resolution: {integrity: sha512-AO2ac6pjRB3SJmGJo+v5/aK6Omggp6fsLrs6wN9bd35ulu4cCwaAU9+7ZhXjeqHVkaHThLuzH0nZr0YpCDhygg==}
@@ -13150,13 +13139,6 @@ snapshots:
 
   '@vueuse/shared@14.3.0(vue@3.5.35(typescript@5.9.3))':
     dependencies:
-      vue: 3.5.35(typescript@5.9.3)
-
-  '@yeger/debounce@2.0.17': {}
-
-  '@yeger/vue-masonry-wall@6.1.1(vue@3.5.35(typescript@5.9.3))':
-    dependencies:
-      '@yeger/debounce': 2.0.17
       vue: 3.5.35(typescript@5.9.3)
 
   abbrev@3.0.1: {}
