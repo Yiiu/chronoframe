@@ -239,6 +239,15 @@ export default defineNuxtConfig({
     },
   },
 
+  fonts: {
+    // fonts.google.com is unreachable from some networks (CN); Bunny Fonts is
+    // a 1:1 Google Fonts mirror, so Rubik / Noto Sans SC resolve there instead.
+    providers: {
+      google: false,
+      googleicons: false,
+    },
+  },
+
   ogImage: {
     fonts: ['Rubik:400', 'Rubik:700', 'Noto+Sans+SC:400', 'Noto+Sans+SC:700'],
   },
