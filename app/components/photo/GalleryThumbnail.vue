@@ -206,24 +206,4 @@ watch(isMobile, scrollToActiveThumbnail)
 .scrollbar-none::-webkit-scrollbar {
   display: none; /* Webkit browsers */
 }
-
-/* 备用滚动条样式（如需要显示时使用） */
-.gallery-scroll-area::-webkit-scrollbar {
-  height: 6px;
-}
-
-.gallery-scroll-area::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
-}
-
-.gallery-scroll-area::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 3px;
-  transition: background-color 0.2s ease;
-}
-
-.gallery-scroll-area::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.5);
-}
 </style>

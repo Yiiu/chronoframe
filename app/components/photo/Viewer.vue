@@ -148,7 +148,8 @@ watch(
         clearTimeout(zoomLevelTimer.value)
         zoomLevelTimer.value = null
       }
-      // TODO: 实现自定义的 ScrollArea 后移除
+      // 保持原生 window 滚动，这里仍需锁 body；OverlayScrollbar 通过
+      // MutationObserver 监听该内联样式来同步隐藏自绘 thumb
       document.body.style.overflow = ''
     } else {
       document.body.style.overflow = 'hidden'

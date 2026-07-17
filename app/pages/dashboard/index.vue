@@ -270,7 +270,10 @@ const onShareSite = () => {
           <!-- 左侧 -->
           <div class="lg:col-span-3">
             <UCard>
-              <div class="heatmap-container">
+              <ScrollArea
+                orientation="horizontal"
+                class="heatmap-container"
+              >
                 <ClientOnly>
                   <CalendarHeatmap
                     theme="blue"
@@ -344,7 +347,7 @@ const onShareSite = () => {
                     </div>
                   </template>
                 </ClientOnly>
-              </div>
+              </ScrollArea>
             </UCard>
           </div>
 
@@ -477,43 +480,7 @@ const onShareSite = () => {
 
 <style>
 .heatmap-container {
-  overflow-x: auto;
-  overflow-y: hidden;
   min-width: 100%;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
-}
-
-.heatmap-container::-webkit-scrollbar {
-  height: 4px;
-}
-
-.heatmap-container::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 2px;
-}
-
-.heatmap-container::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 2px;
-}
-
-.heatmap-container::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.3);
-}
-
-/* 暗色模式下的滚动条样式 */
-.dark .heatmap-container::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.dark .heatmap-container::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.dark .heatmap-container::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
 }
 
 .heatmap-container .vch__container {

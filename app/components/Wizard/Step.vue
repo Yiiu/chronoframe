@@ -31,11 +31,15 @@ defineProps<{
     </div>
 
     <!-- Scrollable Content -->
-    <div class="flex-1 overflow-y-auto custom-scrollbar px-6 lg:px-10 py-6">
+    <ScrollArea
+      class="flex-1 min-h-0"
+      tone="dark"
+      content-class="px-6 lg:px-10 py-6"
+    >
       <div class="max-w-3xl mx-auto h-full">
         <slot />
       </div>
-    </div>
+    </ScrollArea>
 
     <!-- Footer -->
     <div

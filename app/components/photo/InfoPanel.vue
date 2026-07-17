@@ -500,12 +500,11 @@ const onAlbumClick = (albumId: number) => {
     </div>
 
     <!-- 内容区域 -->
-    <div
-      class="p-4 space-y-4 flex-1 min-h-0"
-      :class="{
-        'overflow-y-auto': isMobile,
-        'overflow-y-auto max-h-full pb-16': !isMobile,
-      }"
+    <ScrollArea
+      class="flex-1 min-h-0"
+      :class="{ 'max-h-full': !isMobile }"
+      tone="dark"
+      :content-class="['p-4 space-y-4', { 'pb-16': !isMobile }]"
     >
       <!-- 照片描述 -->
       <div
@@ -627,27 +626,6 @@ const onAlbumClick = (albumId: number) => {
         v-if="formatedExifData.technicalParams"
         :data="formatedExifData.technicalParams"
       />
-    </div>
+    </ScrollArea>
   </motion.div>
 </template>
-
-<style scoped>
-/* 自定义滚动条样式 */
-.overflow-y-auto::-webkit-scrollbar {
-  width: 4px;
-}
-
-.overflow-y-auto::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0);
-  border-radius: 2px;
-}
-
-.overflow-y-auto::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 2px;
-}
-
-.overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.5);
-}
-</style>

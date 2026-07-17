@@ -272,19 +272,21 @@ const clearAllFiles = () => {
           :animate="{ height: 'auto', opacity: 1 }"
           :exit="{ height: 0, opacity: 0 }"
           :transition="{ duration: 0.3, ease: 'easeInOut' }"
-          class="max-h-[calc(100vh-25.3rem)] sm:max-h-150 overflow-hidden overflow-y-auto filelist-container"
+          class="overflow-hidden"
         >
-          <div class="p-2 space-y-2">
-            <AnimatePresence mode="popLayout">
-              <UploadQueueItem
-                v-for="[fileId, uploadingFile] in uploadingFiles"
-                :key="fileId"
-                :uploading-file="uploadingFile"
-                :file-id="fileId"
-                @remove-file="emit('removeFile', $event)"
-              />
-            </AnimatePresence>
-          </div>
+          <ScrollArea class="max-h-[calc(100vh-25.3rem)] sm:max-h-150">
+            <div class="p-2 space-y-2">
+              <AnimatePresence mode="popLayout">
+                <UploadQueueItem
+                  v-for="[fileId, uploadingFile] in uploadingFiles"
+                  :key="fileId"
+                  :uploading-file="uploadingFile"
+                  :file-id="fileId"
+                  @remove-file="emit('removeFile', $event)"
+                />
+              </AnimatePresence>
+            </div>
+          </ScrollArea>
         </motion.div>
       </AnimatePresence>
 
@@ -349,23 +351,3 @@ const clearAllFiles = () => {
     </motion.div>
   </div>
 </template>
-
-<style scoped>
-/* 滚动条样式 */
-.filelist-container::-webkit-scrollbar {
-  width: 4px;
-}
-
-.filelist-container::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.filelist-container::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 2px;
-}
-
-.dark .filelist-container::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-}
-</style>

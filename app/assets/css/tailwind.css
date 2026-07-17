@@ -1,12 +1,38 @@
 @import 'tailwindcss';
 @import '@nuxt/ui';
 
-html {
-  /* Keep layout width identical whether the root scrollbar is present or not.
-     The viewer locks body scroll (Viewer.vue), and without a reserved gutter
-     the scrollbar's disappearance widens the masonry wall mid-session — the
-     hero return flight then lands on stale, pre-relayout coordinates. */
-  scrollbar-gutter: stable;
+@media (hover: hover) and (pointer: fine) {
+  /* The root scrollbar is drawn by OverlayScrollbar (app.vue); the native one
+     is hidden. This also keeps layout width identical whether or not the
+     viewer locks body scroll — the invariant previously enforced with
+     scrollbar-gutter: stable, whose problem (native scrollbar vanishing mid-
+     session widened the masonry wall) no longer exists. Touch devices keep
+     native overlay scrollbars, which never take layout width either. */
+  html {
+    scrollbar-width: none;
+  }
+  html::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Applied by ScrollArea to its viewport: native scrollbar hidden, the
+     OverlayScrollbar sibling paints the replacement. */
+  .cf-hide-native-scrollbar {
+    scrollbar-width: none;
+  }
+  .cf-hide-native-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Fallback for scrollers not wrapped in ScrollArea (Nuxt UI internals,
+     dropdowns, dashboard panels): consistent thin scrollbars everywhere. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(0 0 0 / 0.25) transparent;
+  }
+  .dark * {
+    scrollbar-color: rgb(255 255 255 / 0.3) transparent;
+  }
 }
 
 :root {
@@ -57,18 +83,4 @@ html {
   --font-sans: Rubik, 'Noto Sans SC', sans-serif;
 
   --leading-normal: normal;
-}
-
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
 }

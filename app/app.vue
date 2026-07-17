@@ -125,6 +125,7 @@ provide(
         <NuxtPage />
       </NuxtLayout>
       <ClientOnly>
+        <OverlayScrollbar mode="window" />
         <PhotoViewer
           :photos="viewerPhotos"
           :current-index="currentPhotoIndex"

@@ -603,11 +603,12 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div
-          ref="logContainer"
-          class="flex-1 min-h-0 overflow-y-auto overflow-x-auto scroll-smooth font-mono text-sm relative"
-          @scroll="handleScroll"
-        >
+        <div class="flex-1 min-h-0 relative flex flex-col">
+          <div
+            ref="logContainer"
+            class="flex-1 min-h-0 overflow-y-auto overflow-x-auto scroll-smooth font-mono text-sm relative cf-hide-native-scrollbar"
+            @scroll="handleScroll"
+          >
           <div
             class="relative"
             :style="{ height: `${totalVirtualHeight}px` }"
@@ -681,6 +682,8 @@ onUnmounted(() => {
               <div v-else>{{ $t('dashboard.logs.empty.noMatch') }}</div>
             </div>
           </div>
+          </div>
+          <OverlayScrollbar :target="logContainer" />
         </div>
       </div>
     </template>
@@ -688,24 +691,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* 自定义滚动条样式 */
-.overflow-y-auto::-webkit-scrollbar {
-  width: 8px;
-}
-
-.overflow-y-auto::-webkit-scrollbar-track {
-  background: color-mix(in oklab, var(--ui-color-neutral-200) 50%, transparent);
-}
-
-.overflow-y-auto::-webkit-scrollbar-thumb {
-  background: color-mix(in oklab, var(--ui-color-neutral-400) 50%, transparent);
-  border-radius: 4px;
-}
-
-.overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in oklab, var(--ui-color-neutral-600) 50%, transparent);
-}
-
 mark {
   border-radius: 2px;
   padding: 0 2px;
