@@ -3,7 +3,11 @@ import { computed } from 'vue'
 import { motion } from 'motion-v'
 import type { NeededExif } from '../../../shared/types/photo'
 import type { KVData } from './KVRenderer.vue'
-import { formatCameraInfo, formatLensInfo } from '~/utils/camera'
+import {
+  formatCameraInfo,
+  formatExposureTime,
+  formatLensInfo,
+} from '~/utils/camera'
 
 interface Props {
   currentPhoto: Photo
@@ -37,45 +41,6 @@ const { data: _albums } = useFetch<Album[]>(
 const albums = computed(() => _albums.value || [])
 
 // 格式化曝光时间
-const formatExposureTime = (
-  exposureTime: string | number | undefined,
-): string => {
-  if (!exposureTime) return ''
-
-  let seconds: number
-
-  if (typeof exposureTime === 'string') {
-    if (exposureTime.includes('/')) {
-      const parts = exposureTime.split('/')
-      if (parts.length === 2 && parts[0] && parts[1]) {
-        const numerator = parseFloat(parts[0])
-        const denominator = parseFloat(parts[1])
-        if (!isNaN(numerator) && !isNaN(denominator) && denominator !== 0) {
-          seconds = numerator / denominator
-        } else {
-          return exposureTime
-        }
-      } else {
-        return exposureTime
-      }
-    } else {
-      seconds = parseFloat(exposureTime)
-      if (isNaN(seconds)) {
-        return exposureTime
-      }
-    }
-  } else {
-    seconds = exposureTime
-  }
-
-  if (seconds >= 1) {
-    return `${seconds}s`
-  } else {
-    const denominator = Math.round(1 / seconds)
-    return `1/${denominator}`
-  }
-}
-
 // 格式化GPS坐标为两行显示
 const formatGPSCoordinatesMultiLine = (
   latitude: number,

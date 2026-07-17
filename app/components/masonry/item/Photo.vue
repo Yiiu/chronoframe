@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { formatCameraInfo } from '~/utils/camera'
+import {
+  formatCameraInfo,
+  formatExposureTime,
+  formatLensInfo,
+} from '~/utils/camera'
 import { resolveAspectRatio } from '~/utils/aspectRatio'
 import { motion, useDomRef } from 'motion-v'
 
@@ -55,6 +59,26 @@ const aspectRatio = computed(() =>
     props.photo.height,
   ),
 )
+
+// 机身 · 镜头 一行；两者皆无则整行不渲染
+const cameraLine = computed(() => {
+  const exif = props.photo.exif
+  if (!exif) return ''
+  const body = formatCameraInfo(exif.Make, exif.Model)
+  const lens = formatLensInfo(exif.LensMake, exif.LensModel)
+  return [body, lens].filter(Boolean).join(' · ')
+})
+
+const hasExifParams = computed(() => {
+  const exif = props.photo.exif
+  return !!(
+    exif &&
+    (exif.FocalLengthIn35mmFormat ||
+      exif.FNumber ||
+      exif.ExposureTime ||
+      exif.ISO)
+  )
+})
 
 // Show info overlay only when not playing video or video has finished
 const shouldShowInfoOverlay = computed(() => {
@@ -386,51 +410,6 @@ const processLivePhotoWhenVisible = async () => {
   }
 }
 
-const formatExposureTime = (
-  exposureTime: string | number | undefined,
-): string => {
-  if (!exposureTime) return ''
-
-  let seconds: number
-
-  // Handle different input formats
-  if (typeof exposureTime === 'string') {
-    // Try to parse fraction format like "1/60"
-    if (exposureTime.includes('/')) {
-      const parts = exposureTime.split('/')
-      if (parts.length === 2 && parts[0] && parts[1]) {
-        const numerator = parseFloat(parts[0])
-        const denominator = parseFloat(parts[1])
-        if (!isNaN(numerator) && !isNaN(denominator) && denominator !== 0) {
-          seconds = numerator / denominator
-        } else {
-          return exposureTime // Return original if can't parse
-        }
-      } else {
-        return exposureTime // Return original if format is unexpected
-      }
-    } else {
-      // Try to parse as decimal
-      seconds = parseFloat(exposureTime)
-      if (isNaN(seconds)) {
-        return exposureTime // Return original if can't parse
-      }
-    }
-  } else {
-    seconds = exposureTime
-  }
-
-  // Convert to fraction format
-  if (seconds >= 1) {
-    // For exposures 1 second or longer, show as decimal with "s"
-    return `${seconds}s`
-  } else {
-    // For fast exposures, convert to 1/x format
-    const denominator = Math.round(1 / seconds)
-    return `1/${denominator}`
-  }
-}
-
 onMounted(() => {
   if (alreadyLoaded) {
     isLoading.value = false
@@ -469,7 +448,7 @@ onUnmounted(() => {
 <template>
   <div
     ref="photoRef"
-    class="w-full transition-all duration-300 cursor-pointer select-none"
+    class="w-full cursor-pointer select-none"
     :style="{
       transform: 'translateZ(0)',
     }"
@@ -493,7 +472,7 @@ onUnmounted(() => {
           :alt="photo.title || $t('ui.photo.altFallback')"
           :thumbhash="photo.thumbnailHash || ''"
           :instant="alreadyLoaded"
-          class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.02]"
           @load="handleImageLoad"
           @error="handleImageError"
         />
@@ -536,11 +515,6 @@ onUnmounted(() => {
         />
       </div>
 
-      <!-- Overlay -->
-      <div
-        class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300"
-      />
-
       <!-- Live Photo indicator -->
       <PhotoLivePhotoIndicator
         v-if="photo.isLivePhoto"
@@ -550,126 +524,114 @@ onUnmounted(() => {
         :processing-state="processingState || null"
       />
 
-      <!-- Photo info overlay (bottom) -->
+      <!-- Photo info overlay (bottom glass card) -->
       <div
         v-if="overlayEverShown"
         v-show="shouldShowInfoOverlay"
-        class="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/60 to-transparent p-3 transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]"
+        class="absolute inset-x-2 bottom-2 flex flex-col gap-1 rounded-xl border border-white/15 bg-neutral-900/35 px-3 py-2.5 text-white shadow-lg backdrop-blur-xl backdrop-saturate-150 transition-[translate,opacity]"
         :class="
           shouldShowInfoOverlay && overlayShown && !isMobile
-            ? 'translate-y-0 opacity-100'
-            : 'translate-y-full opacity-0'
+            ? 'translate-y-0 opacity-100 duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]'
+            : 'translate-y-1.5 opacity-0 duration-200 ease-out'
         "
       >
-        <div class="text-white flex flex-col gap-1">
-          <div class="flex flex-col">
-            <p
-              v-if="photo.title"
-              class="text-base font-medium text-ellipsis line-clamp-1"
-            >
-              {{ photo.title }}
-            </p>
-            <p
-              v-if="photo.description"
-              class="text-xs text-justify opacity-80 line-clamp-2"
-            >
-              {{ photo.description }}
-            </p>
-            <p
-              v-if="photo.dateTaken || photo.city"
-              class="text-xs font-medium opacity-80"
-            >
-              <span v-if="photo.dateTaken">
-                {{ $dayjs(photo.dateTaken).format('YYYY-MM-DD') }}
-              </span>
-              <span v-if="photo.city">
-                <span v-if="photo.dateTaken"> · </span>{{ photo.city }}
-              </span>
-            </p>
-          </div>
-          <div
-            v-if="photo.tags?.length"
-            class="mt-1 flex items-center gap-1"
+        <p
+          v-if="photo.title"
+          class="text-sm font-medium truncate"
+        >
+          {{ photo.title }}
+        </p>
+        <div
+          v-if="photo.dateTaken || photo.city"
+          class="flex items-center gap-2.5 text-[11px] leading-none text-white/75"
+        >
+          <span
+            v-if="photo.dateTaken"
+            class="flex items-center gap-1 tabular-nums"
           >
-            <UBadge
-              v-for="tag in photo.tags"
-              :key="tag"
-              size="sm"
-              color="neutral"
-              class="bg-white/20 text-white/80 backdrop-blur-3xl"
-            >
-              {{ tag }}
-            </UBadge>
-          </div>
-          <div>
-            <!-- Camera info from EXIF if available -->
-            <div
-              v-if="photo.exif && (photo.exif.Make || photo.exif.Model)"
-              class="text-sm opacity-70 mt-1 flex items-center gap-1"
-            >
-              <Icon name="tabler:camera" />
-              <span class="text-xs font-medium text-ellipsis line-clamp-1">
-                {{ formatCameraInfo(photo.exif.Make, photo.exif.Model) }}
-              </span>
-            </div>
-            <!-- Photo specs from EXIF -->
-            <div
-              v-if="
-                photo.exif &&
-                (photo.exif.FNumber ||
-                  photo.exif.ExposureTime ||
-                  photo.exif.ISO)
-              "
-              class="text-sm opacity-70 mt-1 flex gap-2"
-            >
-              <div
-                v-if="photo.exif.FocalLengthIn35mmFormat"
-                class="flex items-center gap-0.5"
-              >
-                <Icon
-                  name="streamline:image-accessories-lenses-photos-camera-shutter-picture-photography-pictures-photo-lens"
-                  class="-mt-0.5"
-                />
-                <span class="text-xs font-medium">
-                  {{ photo.exif.FocalLengthIn35mmFormat }}
-                </span>
-              </div>
-              <div
-                v-if="photo.exif.FNumber"
-                class="flex items-center gap-0.5"
-              >
-                <Icon
-                  name="tabler:aperture"
-                  class="-mt-0.5"
-                />
-                <span class="text-xs font-medium">
-                  f/{{ photo.exif.FNumber }}
-                </span>
-              </div>
-              <div
-                v-if="photo.exif.ExposureTime"
-                class="flex items-center gap-0.5"
-              >
-                <Icon
-                  name="material-symbols:shutter-speed"
-                  class="-mt-0.5"
-                />
-                <span class="text-xs font-medium">
-                  {{ formatExposureTime(photo.exif.ExposureTime) }}
-                </span>
-              </div>
-              <div
-                v-if="photo.exif.ISO"
-                class="flex items-center gap-0.5"
-              >
-                <Icon
-                  name="carbon:iso-outline"
-                  class="-mt-0.5"
-                />
-                <span class="text-xs font-medium">{{ photo.exif.ISO }}</span>
-              </div>
-            </div>
-          </div>
+            <Icon
+              name="tabler:calendar"
+              class="shrink-0"
+            />
+            {{ $dayjs(photo.dateTaken).format('YYYY-MM-DD') }}
+          </span>
+          <span
+            v-if="photo.city"
+            class="flex items-center gap-1 min-w-0"
+          >
+            <Icon
+              name="tabler:map-pin"
+              class="shrink-0"
+            />
+            <span class="truncate">{{ photo.city }}</span>
+          </span>
+        </div>
+        <div
+          v-if="cameraLine"
+          class="flex items-center gap-1 text-[11px] leading-none text-white/75"
+        >
+          <Icon
+            name="tabler:camera"
+            class="shrink-0"
+          />
+          <span class="truncate">{{ cameraLine }}</span>
+        </div>
+        <div
+          v-if="hasExifParams"
+          class="flex items-center gap-2 text-[11px] leading-none text-white/75 tabular-nums overflow-hidden"
+        >
+          <span
+            v-if="photo.exif?.FocalLengthIn35mmFormat"
+            class="flex items-center gap-1 shrink-0"
+          >
+            <Icon
+              name="tabler:telescope"
+              class="shrink-0"
+            />
+            {{ photo.exif.FocalLengthIn35mmFormat }}
+          </span>
+          <span
+            v-if="photo.exif?.FNumber"
+            class="flex items-center gap-1 shrink-0"
+          >
+            <Icon
+              name="tabler:aperture"
+              class="shrink-0"
+            />
+            f/{{ photo.exif.FNumber }}
+          </span>
+          <span
+            v-if="photo.exif?.ExposureTime"
+            class="flex items-center gap-1 shrink-0"
+          >
+            <Icon
+              name="tabler:clock"
+              class="shrink-0"
+            />
+            {{ formatExposureTime(photo.exif.ExposureTime) }}
+          </span>
+          <span
+            v-if="photo.exif?.ISO"
+            class="flex items-center gap-1 shrink-0"
+          >
+            <Icon
+              name="tabler:sun-electricity"
+              class="shrink-0"
+            />
+            ISO {{ photo.exif.ISO }}
+          </span>
+        </div>
+        <div
+          v-if="photo.tags?.length"
+          class="mt-0.5 flex items-center gap-1"
+        >
+          <span
+            v-for="tag in photo.tags.slice(0, 3)"
+            :key="tag"
+            class="rounded-full border border-white/10 bg-white/15 px-2 py-1 text-[10px] leading-none text-white/85"
+          >
+            {{ tag }}
+          </span>
         </div>
       </div>
     </div>

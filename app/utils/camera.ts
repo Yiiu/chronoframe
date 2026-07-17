@@ -51,6 +51,48 @@ export function formatCameraInfo(make?: string, model?: string): string {
 }
 
 /**
+ * 格式化曝光时间：>=1s 显示为 "Ns"，快门以分数 "1/x" 显示；无法解析时原样返回
+ */
+export function formatExposureTime(
+  exposureTime: string | number | undefined,
+): string {
+  if (!exposureTime) return ''
+
+  let seconds: number
+
+  if (typeof exposureTime === 'string') {
+    if (exposureTime.includes('/')) {
+      const parts = exposureTime.split('/')
+      if (parts.length === 2 && parts[0] && parts[1]) {
+        const numerator = parseFloat(parts[0])
+        const denominator = parseFloat(parts[1])
+        if (!isNaN(numerator) && !isNaN(denominator) && denominator !== 0) {
+          seconds = numerator / denominator
+        } else {
+          return exposureTime
+        }
+      } else {
+        return exposureTime
+      }
+    } else {
+      seconds = parseFloat(exposureTime)
+      if (isNaN(seconds)) {
+        return exposureTime
+      }
+    }
+  } else {
+    seconds = exposureTime
+  }
+
+  if (seconds >= 1) {
+    return `${seconds}s`
+  } else {
+    const denominator = Math.round(1 / seconds)
+    return `1/${denominator}`
+  }
+}
+
+/**
  * 格式化镜头信息，处理品牌和型号
  */
 export function formatLensInfo(lensMake?: string, lensModel?: string): string {
