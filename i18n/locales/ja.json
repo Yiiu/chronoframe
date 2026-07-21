@@ -646,6 +646,7 @@
         "batchDeleteFailed": "一括削除に失敗しました",
         "batchReprocessFailed": "一括再処理に失敗しました",
         "reprocessFailed": "写真の再処理に失敗しました",
+        "reactionsFetchFailed": "リアクションの取得に失敗しました",
         "livePhotoNotFound": "ライブフォトではありません",
         "livePhotoLoadError": "ライブフォト情報を読み込めません",
         "metadataUpdateSuccess": "写真のメタデータを更新しました",

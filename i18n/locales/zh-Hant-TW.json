@@ -646,6 +646,7 @@
         "batchDeleteFailed": "批量刪除失敗",
         "batchReprocessFailed": "批量重新處理失敗",
         "reprocessFailed": "重新處理照片失敗",
+        "reactionsFetchFailed": "取得表態資料失敗",
         "livePhotoNotFound": "不是原況照片",
         "livePhotoLoadError": "無法載入原況照片資訊",
         "metadataUpdateSuccess": "照片資訊已更新",

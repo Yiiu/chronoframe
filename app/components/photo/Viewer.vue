@@ -14,6 +14,7 @@ import ReactionPicker from './ReactionPicker.vue'
 import ReactionConfetti from './ReactionConfetti.vue'
 import { REACTION_ICON_MAP } from './reaction-definitions'
 import type { LoadingIndicatorRef } from './LoadingIndicator.vue'
+import type { NeededExif } from '~~/shared/types/photo'
 
 interface Props {
   photos: Photo[]
@@ -103,6 +104,17 @@ const heroMasking = computed(() => heroCovering.value || !!pendingHero.value)
 // Computed
 const currentPhoto = computed(() => props.photos[props.currentIndex])
 const isMobile = useMediaQuery('(max-width: 768px)')
+
+// The list payload only carries the slim exif whitelist; pull the full exif on
+// demand so the info panel can show every detail field. Render slim fields
+// immediately, then backfill the full blob when it arrives.
+const { exif: detailExif } = usePhotoDetail(() => currentPhoto.value?.id)
+const infoPanelExif = computed<NeededExif | null>(() => {
+  const slim = currentPhoto.value?.exif ?? null
+  const full = detailExif.value
+  if (!slim && !full) return null
+  return { ...(slim as object), ...(full as object) } as NeededExif
+})
 
 // LivePhoto processing state
 const livePhotoProcessingState = computed(() => {
@@ -1005,14 +1017,14 @@ const swiperModules = [Navigation, Keyboard, Virtual]
             <InfoPanel
               v-if="showExifPanel && currentPhoto"
               :current-photo="currentPhoto"
-              :exif-data="currentPhoto?.exif"
+              :exif-data="infoPanelExif"
               :on-close="() => (showExifPanel = false)"
             />
           </AnimatePresence>
           <InfoPanel
             v-else-if="currentPhoto"
             :current-photo="currentPhoto"
-            :exif-data="currentPhoto?.exif"
+            :exif-data="infoPanelExif"
           />
         </div>
       </motion.div>

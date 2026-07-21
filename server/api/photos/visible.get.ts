@@ -16,19 +16,24 @@ export default eventHandler(async (_event) => {
   const hiddenPhotoIds = hiddenAlbumPhotos.map((row) => row.photoId)
 
   // 查询所有照片，排除隐藏相册中的照片
+  // Ship only the list-context exif whitelist (see server/utils/slim-exif.ts).
   if (hiddenPhotoIds.length > 0) {
-    return db
-      .select()
-      .from(tables.photos)
-      .where(notInArray(tables.photos.id, hiddenPhotoIds))
-      .orderBy(desc(tables.photos.dateTaken))
-      .all()
+    return slimPhotoExif(
+      db
+        .select()
+        .from(tables.photos)
+        .where(notInArray(tables.photos.id, hiddenPhotoIds))
+        .orderBy(desc(tables.photos.dateTaken))
+        .all(),
+    )
   }
 
   // 如果没有隐藏的照片，直接返回所有照片
-  return db
-    .select()
-    .from(tables.photos)
-    .orderBy(desc(tables.photos.dateTaken))
-    .all()
+  return slimPhotoExif(
+    db
+      .select()
+      .from(tables.photos)
+      .orderBy(desc(tables.photos.dateTaken))
+      .all(),
+  )
 })

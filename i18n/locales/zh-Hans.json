@@ -720,6 +720,7 @@
         "batchDeleteFailed": "批量删除失败",
         "batchReprocessFailed": "批量重新处理失败",
         "reprocessFailed": "重新处理失败",
+        "reactionsFetchFailed": "获取表态数据失败",
         "livePhotoNotFound": "不是 Live Photo",
         "livePhotoLoadError": "无法获取 Live Photo 信息",
         "metadataUpdateSuccess": "照片信息已更新",

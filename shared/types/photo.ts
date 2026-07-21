@@ -95,6 +95,38 @@ export interface NeededExif {
   MicroVideoPresentationTimestampUs?: Tags['MicroVideoPresentationTimestampUs']
 }
 
+/**
+ * List-context exif whitelist.
+ *
+ * The full `exif` blob (~70 fields, avg ~1.4 KB) is 66% of the `/api/photos`
+ * payload. List/grid/map contexts only ever read the fields below, so the list
+ * endpoints ship just these (see `slimExif`) and the viewer pulls the full blob
+ * on demand via `GET /api/photos/:id`.
+ *
+ * Deliberately excluded: GPSLatitude/Longitude/*Ref (readers switched to the
+ * top-level `latitude`/`longitude` columns) and ImageWidth/ImageHeight (no
+ * front-end readers).
+ */
+export const SLIM_EXIF_KEYS = [
+  'Make',
+  'Model',
+  'LensMake',
+  'LensModel',
+  'FocalLengthIn35mmFormat',
+  'FNumber',
+  'ExposureTime',
+  'ISO',
+  'FocalLength',
+  'Rating',
+  'ColorSpace',
+  'GPSAltitude',
+  'GPSAltitudeRef',
+  'DateTimeOriginal',
+  'ImageDescription',
+] as const satisfies readonly (keyof NeededExif)[]
+
+export type SlimExif = Pick<NeededExif, (typeof SLIM_EXIF_KEYS)[number]>
+
 export interface PhotoInfo {
   title: string
   dateTaken: string

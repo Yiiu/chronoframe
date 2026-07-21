@@ -448,9 +448,7 @@ const onClick = () => {
                     </div>
                     <!-- Latlng -->
                     <div
-                      v-if="
-                        marker.exif?.GPSLatitude || marker.exif?.GPSLongitude
-                      "
+                      v-if="marker.latitude != null || marker.longitude != null"
                       class="flex items-center gap-1 text-xs text-neutral-600 dark:text-muted"
                     >
                       <Icon
@@ -459,13 +457,13 @@ const onClick = () => {
                       />
                       <span class="truncate font-mono">
                         {{
-                          marker.exif?.GPSLatitude
-                            ? `${Math.abs(Number(marker.exif?.GPSLatitude)).toFixed(4)}°${marker.exif?.GPSLatitudeRef}`
+                          marker.latitude != null
+                            ? `${Math.abs(marker.latitude).toFixed(4)}°${marker.latitude >= 0 ? 'N' : 'S'}`
                             : $t('map.photo.unknownCoord')
                         }},
                         {{
-                          marker.exif?.GPSLongitude
-                            ? `${Math.abs(Number(marker.exif?.GPSLongitude)).toFixed(4)}°${marker.exif?.GPSLongitudeRef}`
+                          marker.longitude != null
+                            ? `${Math.abs(marker.longitude).toFixed(4)}°${marker.longitude >= 0 ? 'E' : 'W'}`
                             : $t('map.photo.unknownCoord')
                         }}
                       </span>

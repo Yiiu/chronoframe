@@ -1,0 +1,3 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/app/frontend/index.md", "reason": "主应用前端 spec 入口;本任务动 app/ 前端 + server/api"}
+{"file": ".trellis/spec/guides/index.md", "reason": "共享编码思维指南(跨层数据流:exif 瘦身影响 13 个消费方)"}

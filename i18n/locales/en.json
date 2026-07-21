@@ -720,6 +720,7 @@
         "batchDeleteFailed": "Batch delete failed",
         "batchReprocessFailed": "Batch reprocess failed",
         "reprocessFailed": "Failed to reprocess photo",
+        "reactionsFetchFailed": "Failed to load reactions",
         "livePhotoNotFound": "Not a Live Photo",
         "livePhotoLoadError": "Unable to load Live Photo information",
         "metadataUpdateSuccess": "Photo metadata updated",

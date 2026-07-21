@@ -86,7 +86,7 @@ const setEraseLocationLoading = (photoId: string, loading: boolean) => {
 const reactionsData = ref<Record<string, Record<string, number>>>({})
 const reactionsLoading = ref(false)
 
-// 获取表态数据
+// 获取表态数据（只取可视区 id，结果合并进 reactionsData，不整体替换）
 const fetchReactions = async (photoIds: string[]) => {
   if (photoIds.length === 0) return
 
@@ -95,9 +95,20 @@ const fetchReactions = async (photoIds: string[]) => {
     const data = await $fetch('/api/photos/reactions', {
       query: { ids: photoIds },
     })
-    reactionsData.value = data as Record<string, Record<string, number>>
+    // 合并而非替换：滚回已取过的行不会丢表态
+    reactionsData.value = {
+      ...reactionsData.value,
+      ...(data as Record<string, Record<string, number>>),
+    }
   } catch (error) {
+    // 之前这里只 console.error，导致 431（URL 过长）时表态列静默空掉、无人察觉。
+    // 现在改为可见的 toast，任何取数失败都会浮出来。
     console.error('获取表态数据失败:', error)
+    toast.add({
+      title: $t('dashboard.photos.messages.reactionsFetchFailed'),
+      description: '',
+      color: 'error',
+    })
   } finally {
     reactionsLoading.value = false
   }
@@ -276,6 +287,99 @@ watch(isEditModalOpen, (open) => {
 const rowSelection = ref({})
 const table: any = useTemplateRef('table')
 
+// 虚拟化行高（锁死）：缩略图 64px + td 竖向 padding(16px×2) + 1px 分隔线 = 97px。
+// 虚拟器给每个虚拟 <tr> 打 inline height，但那是 table 布局里的最小值——内容更高时
+// 以内容为准。实测最高单元格(缩略图列)撑到 97px，estimateSize 必须对准这个实测值，
+// 否则虚拟器按估算值定位、行按实际高渲染，两者错位 → 滚动条跳。
+const ROW_HEIGHT = 97
+
+// 缩略图悬停预览：受控 open（不用 UPopover 的 hover 模式），
+// 这样滚动时能立刻强制关闭——虚拟行会被回收复用，不关会串照片/卡住。
+const hoverPreviewId = ref<string | null>(null)
+
+// 收集当前可视区（含少量 overscan）的照片 id。
+// 每个缩略图单元格带 data-photo-id；虚拟化后 DOM 里只有渲染出来的那几十行，
+// 再用 getBoundingClientRect 过滤出真正在滚动容器视口内的行。
+// 不依赖虚拟器内部偏移量，也就不受 sticky thead 高度影响。
+const collectVisibleIds = (): string[] => {
+  const el = table.value?.$el as HTMLElement | undefined
+  if (!el) return []
+
+  const containerRect = el.getBoundingClientRect()
+  const nodes = el.querySelectorAll<HTMLElement>('[data-photo-id]')
+  const ids: string[] = []
+  for (const node of nodes) {
+    const rect = node.getBoundingClientRect()
+    // 与视口纵向有交集即视为可见
+    if (rect.bottom >= containerRect.top && rect.top <= containerRect.bottom) {
+      const id = node.dataset.photoId
+      if (id) ids.push(id)
+    }
+  }
+  return ids
+}
+
+let visibleFetchTimer: ReturnType<typeof setTimeout> | null = null
+
+// 拉可视区表态（debounce ~200ms）
+const scheduleVisibleReactionsFetch = (delay = 200) => {
+  if (visibleFetchTimer) clearTimeout(visibleFetchTimer)
+  visibleFetchTimer = setTimeout(() => {
+    const ids = collectVisibleIds()
+    if (ids.length > 0) void fetchReactions(ids)
+  }, delay)
+}
+
+// 首屏/数据变化后拉可视区表态：虚拟器可能要一两帧才完成测量与渲染，
+// 若还没有可见行则跨帧重试若干次，避免首屏表态列一直空到用户滚动才补上。
+const fetchVisibleReactionsWhenReady = (retries = 6) => {
+  const ids = collectVisibleIds()
+  if (ids.length > 0) {
+    void fetchReactions(ids)
+    return
+  }
+  if (retries > 0) {
+    requestAnimationFrame(() => fetchVisibleReactionsWhenReady(retries - 1))
+  }
+}
+
+// 滚动容器（UTable 的根元素 = overflow-auto 的 rootRef.$el）上的滚动处理：
+// 1) 立刻关掉悬停预览（防止行回收串照片）
+// 2) debounce 拉可视区表态
+const onTableScroll = () => {
+  hoverPreviewId.value = null
+  scheduleVisibleReactionsFetch()
+}
+
+let scrollElBound: HTMLElement | null = null
+
+const bindTableScroll = () => {
+  const el = table.value?.$el as HTMLElement | undefined
+  if (!el || el === scrollElBound) return
+  if (scrollElBound) {
+    scrollElBound.removeEventListener('scroll', onTableScroll)
+  }
+  el.addEventListener('scroll', onTableScroll, { passive: true })
+  scrollElBound = el
+}
+
+onMounted(() => {
+  // 表格挂载后绑定滚动监听，并拉一次首屏可视区表态
+  nextTick(() => {
+    bindTableScroll()
+    // 等虚拟器完成首次布局后再采集可视行（跨帧重试直到有可见行）
+    fetchVisibleReactionsWhenReady()
+  })
+})
+
+onBeforeUnmount(() => {
+  if (visibleFetchTimer) clearTimeout(visibleFetchTimer)
+  if (scrollElBound) {
+    scrollElBound.removeEventListener('scroll', onTableScroll)
+    scrollElBound = null
+  }
+})
+
 // 列可见性状态
 const columnVisibility = ref({
   thumbnailUrl: true,
@@ -328,13 +432,17 @@ const filteredData = computed(() => {
   }
 })
 
-// 监听过滤后的照片变化，自动获取表态数据
+// 监听过滤后的照片变化：只拉当前可视区的表态（不再把全部 id 塞进 URL → 避免 431）。
+// 数据/筛选变化后行会重排，等 DOM 更新完再采集可视行。
 watch(
   () => filteredData.value,
   async (photos) => {
+    if (!import.meta.client) return
     if (photos && photos.length > 0) {
-      const photoIds = photos.map((p: Photo) => p.id)
-      await fetchReactions(photoIds)
+      await nextTick()
+      // 绑定可能尚未建立（首次数据在 mount 后到达），确保监听已挂上
+      bindTableScroll()
+      fetchVisibleReactionsWhenReady()
     }
   },
   { immediate: true },
@@ -365,18 +473,7 @@ const columns = computed<TableColumn<Photo>[]>(() => [
     id: 'thumbnailUrl',
     accessorKey: 'thumbnailUrl',
     header: $t('dashboard.photos.table.columns.thumbnail.title'),
-    cell: ({ row }) => {
-      const url = row.original.thumbnailUrl
-      return h(ThumbImage, {
-        src: url || row.original.originalUrl || '',
-        alt: row.original.title || $t('dashboard.photos.table.thumbnailAlt'),
-        key: row.original.id,
-        thumbhash: row.original.thumbnailHash || '',
-        class: 'size-16 min-w-[100px] object-cover rounded-md shadow',
-        onClick: () => openImagePreview(row.original),
-        style: { cursor: url ? 'pointer' : 'default' },
-      })
-    },
+    // 单元格改由 #thumbnailUrl-cell 模板 slot 渲染（悬停预览 popover + data-photo-id）
     enableHiding: false,
   },
   {
@@ -475,9 +572,9 @@ const columns = computed<TableColumn<Photo>[]>(() => [
     accessorKey: 'location',
     header: $t('dashboard.photos.table.columns.location'),
     cell: ({ row }) => {
-      const { exif, city, country } = row.original
+      const { latitude, longitude, city, country } = row.original
 
-      if (!exif?.GPSLongitude && !exif?.GPSLatitude) {
+      if (latitude == null && longitude == null) {
         return h(
           'span',
           { class: 'text-neutral-400 text-xs' },
@@ -608,6 +705,15 @@ const columns = computed<TableColumn<Photo>[]>(() => [
     accessorKey: 'actions',
     header: $t('dashboard.photos.table.columns.actions'),
     enableHiding: false,
+    // 手写 sticky 固定列。TanStack 的 column-pinning 在 :virtualize 下会失效
+    // （spike 实测：pinned 的 actions 列 position 变回 static），故不用 column-pinning，
+    // 直接给表头/单元格无条件挂 sticky right-0 + 背景 + z-index，保证虚拟化下仍固定。
+    meta: {
+      class: {
+        th: 'sticky right-0 z-[2] bg-neutral-50/80 dark:bg-neutral-900/80 backdrop-blur-md',
+        td: 'sticky right-0 z-[1] bg-white dark:bg-neutral-900',
+      },
+    },
   },
 ])
 
@@ -1586,9 +1692,9 @@ watch(isImagePreviewOpen, (open) => {
               @click="
                 async () => {
                   await refresh()
-                  if (filteredData.length > 0) {
-                    await fetchReactions(filteredData.map((p: Photo) => p.id))
-                  }
+                  await nextTick()
+                  // 只刷新可视区表态（避免把全部 id 塞进 URL 触发 431）
+                  fetchVisibleReactionsWhenReady()
                 }
               "
             >
@@ -1648,9 +1754,7 @@ watch(isImagePreviewOpen, (open) => {
             ref="table"
             v-model:row-selection="rowSelection"
             v-model:column-visibility="columnVisibility"
-            :column-pinning="{
-              right: ['actions'],
-            }"
+            :virtualize="{ estimateSize: ROW_HEIGHT, overscan: 8 }"
             :data="filteredData as Photo[]"
             :columns="columns"
             :loading="status === 'pending'"
@@ -1682,6 +1786,76 @@ watch(isImagePreviewOpen, (open) => {
               separator: 'bg-neutral-200/80 dark:bg-neutral-800/80',
             }"
           >
+            <template #thumbnailUrl-cell="{ row }">
+              <!--
+                受控 open 的悬停预览 popover：
+                - @mouseenter/@mouseleave 驱动 hoverPreviewId（不用 UPopover 自带 hover 模式，
+                  这样滚动时 onTableScroll 能把 hoverPreviewId 置空、立即关闭，避免行回收串照片）
+                - 点击缩略图仍走 openImagePreview（大图弹窗），下拉菜单“预览照片”也保留
+                - data-photo-id 供 collectVisibleIds 采集可视区行
+              -->
+              <UPopover
+                :open="hoverPreviewId === row.original.id"
+                :content="{ side: 'right', align: 'center', sideOffset: 8 }"
+                :ui="{ content: 'p-1 rounded-xl overflow-hidden' }"
+              >
+                <div
+                  :data-photo-id="row.original.id"
+                  class="w-fit"
+                  @mouseenter="hoverPreviewId = row.original.id"
+                  @mouseleave="
+                    hoverPreviewId === row.original.id
+                      ? (hoverPreviewId = null)
+                      : null
+                  "
+                >
+                  <ThumbImage
+                    :src="row.original.thumbnailUrl || row.original.originalUrl || ''"
+                    :alt="
+                      row.original.title ||
+                      $t('dashboard.photos.table.thumbnailAlt')
+                    "
+                    :thumbhash="row.original.thumbnailHash || ''"
+                    instant
+                    class="size-16 object-cover rounded-md shadow"
+                    :style="{
+                      cursor: row.original.thumbnailUrl ? 'pointer' : 'default',
+                    }"
+                    @click="openImagePreview(row.original)"
+                  />
+                </div>
+
+                <template #content>
+                  <div
+                    class="overflow-hidden rounded-lg bg-neutral-100 dark:bg-neutral-800"
+                    :style="{
+                      width: '400px',
+                      maxWidth: '80vw',
+                      aspectRatio: row.original.aspectRatio
+                        ? String(row.original.aspectRatio)
+                        : row.original.width && row.original.height
+                          ? `${row.original.width} / ${row.original.height}`
+                          : '3 / 2',
+                    }"
+                  >
+                    <ThumbImage
+                      :src="
+                        row.original.thumbnailUrl ||
+                        row.original.originalUrl ||
+                        ''
+                      "
+                      :alt="
+                        row.original.title ||
+                        $t('dashboard.photos.table.thumbnailAlt')
+                      "
+                      :thumbhash="row.original.thumbnailHash || ''"
+                      class="w-full h-full object-cover"
+                    />
+                  </div>
+                </template>
+              </UPopover>
+            </template>
+
             <template #actions-cell="{ row }">
               <div class="flex justify-end">
                 <UDropdownMenu
