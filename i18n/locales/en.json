@@ -1010,9 +1010,12 @@
         "completedAt": "Completed At",
         "actions": "Actions",
         "expandAria": "Expand",
+        "detailAria": "View details",
         "detail": {
           "photoId": "Photo ID",
-          "payload": "Payload"
+          "payload": "Payload",
+          "title": "Task Details",
+          "taskGone": "This task no longer exists"
         }
       },
       "status": {

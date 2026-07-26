@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/app/frontend/dashboard-photos-list.md", "reason": "上轮 photos 表虚拟化/exif 分层契约与 Bad cases,M1 回归面与 M2 可复用方案(sticky/estimateSize/Gotcha)"}
+{"file": ".trellis/spec/app/frontend/bulk-upload.md", "reason": "prod 压测方法论、虚拟列表行 key 纪律、dev 数字误导教训"}
+{"file": ".trellis/spec/guides/index.md", "reason": "跨层/复用思维清单"}

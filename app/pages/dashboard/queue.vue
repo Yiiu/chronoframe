@@ -152,6 +152,9 @@ const deleteTask = async (taskId: number) => {
       color: 'success',
     })
 
+    // 从抽屉里删掉当前展示的任务 → 关抽屉（design.md 契约）
+    if (detailTaskId.value === taskId) detailTaskId.value = null
+
     await refreshData()
   } catch (error: any) {
     console.error('Delete task failed:', error)
@@ -208,27 +211,41 @@ const typeOptions = computed(() => [
   },
 ])
 
-// 展开行状态
-const expanded = ref<Record<string, boolean>>({})
+// 虚拟化行高（锁死）。QUEUE_ROW_HEIGHT 必须等于实测真实行高（photos 表的教训：
+// estimateSize 与实际行高错位 → 虚拟器定位漂移、滚动条跳）。td 竖向 padding 锁 py-2.5，
+// 所有单元格单行（whitespace-nowrap），最高内容为 actions 列 xs 按钮。实测值见下方注释。
+const QUEUE_ROW_HEIGHT = 49
+
+// 详情抽屉：存 id 不存行对象——10s 轮询刷新后从最新 queueData 里 computed 出行，
+// 避免拿着过期引用；任务消失时抽屉显示提示但不强关（用户可能正在读错误堆栈）。
+const detailTaskId = ref<number | null>(null)
+const isDetailOpen = computed({
+  get: () => detailTaskId.value !== null,
+  set: (open: boolean) => {
+    if (!open) detailTaskId.value = null
+  },
+})
+const detailTask = computed(
+  () =>
+    queueData.value?.data?.find((task) => task.id === detailTaskId.value) ??
+    null,
+)
 
 // 表格列定义
 const columns = computed<TableColumn<any>[]>(() => [
   {
-    id: 'expand',
+    id: 'detail',
+    // 原内联展开行改为详情抽屉：UTable :virtualize 强制固定行高（无动态测高），
+    // 变高的展开行与之冲突，详情移入 USlideover。
     cell: ({ row }) =>
       h(UButton, {
         color: 'neutral',
         variant: 'ghost',
-        icon: 'tabler:chevron-down',
+        icon: 'tabler:list-details',
         square: true,
-        'aria-label': $t('dashboard.queue.table.expandAria'),
-        ui: {
-          leadingIcon: [
-            'transition-transform',
-            row.getIsExpanded() ? 'duration-200 rotate-180' : '',
-          ],
-        },
-        onClick: () => row.toggleExpanded(),
+        size: 'xs',
+        'aria-label': $t('dashboard.queue.table.detailAria'),
+        onClick: () => (detailTaskId.value = row.original.id),
       }),
     enableSorting: false,
     enableHiding: false,
@@ -265,6 +282,13 @@ const columns = computed<TableColumn<any>[]>(() => [
   {
     id: 'actions',
     header: $t('dashboard.queue.table.actions'),
+    // 手写 sticky 固定列（同 photos 表）：column-pinning 在 :virtualize 下失效。
+    meta: {
+      class: {
+        th: 'sticky right-0 z-[2] bg-neutral-50/80 dark:bg-neutral-900/80 backdrop-blur-md',
+        td: 'sticky right-0 z-[1] bg-white dark:bg-neutral-900',
+      },
+    },
   },
 ])
 
@@ -311,9 +335,9 @@ onBeforeUnmount(() => {
     </template>
 
     <template #body>
-      <div class="flex flex-col gap-6">
+      <div class="flex flex-col gap-6 h-full flex-1 min-h-0">
         <!-- 状态指示器 -->
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
           <DashboardIndicator
             :title="$t('dashboard.queue.indicator.pending')"
             icon="tabler:clock"
@@ -341,7 +365,10 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- 筛选器和表格 -->
-        <UCard>
+        <UCard
+          class="flex-1 min-h-0 flex flex-col"
+          :ui="{ body: 'flex-1 min-h-0 flex flex-col' }"
+        >
           <template #header>
             <div class="flex items-center justify-between pb-2">
               <h2 class="text-lg font-semibold">{{ $t('dashboard.queue.taskListTitle') }}</h2>
@@ -368,18 +395,26 @@ onBeforeUnmount(() => {
             </div>
           </template>
 
-          <div class="space-y-4">
-            <!-- 任务表格 -->
+          <div class="relative flex-1 min-h-0 flex flex-col">
+            <!-- 任务表格（虚拟化：固定行高 + 手写 sticky actions 列，同 photos 表方案） -->
             <UTable
-              v-model:expanded="expanded"
               :data="queueData?.data || []"
               :columns="columns"
               :loading="isLoading"
+              :virtualize="{ estimateSize: QUEUE_ROW_HEIGHT, overscan: 8 }"
+              sticky
               :empty-state="{
                 icon: 'tabler:inbox',
                 label: $t('dashboard.queue.messages.noTasks'),
               }"
-              class="w-full"
+              class="w-full h-full flex-1"
+              :ui="{
+                wrapper: 'relative h-full overflow-auto',
+                base: 'min-w-full',
+                thead:
+                  'bg-neutral-50/80 dark:bg-neutral-900/80 backdrop-blur-md sticky top-0 z-10 whitespace-nowrap',
+                td: 'px-4 py-2.5 whitespace-nowrap',
+              }"
             >
               <!-- 任务类型 -->
               <template #type-cell="{ row }">
@@ -469,76 +504,170 @@ onBeforeUnmount(() => {
                 </div>
               </template>
 
-              <!-- 展开行内容 -->
-              <template #expanded="{ row }">
-                <div class="px-2">
-                  <div class="space-y-3">
-                    <!-- 任务ID和类型 -->
-                    <div class="flex gap-4">
-                      <div>
-                        <p class="text-xs text-neutral-500">{{ $t('dashboard.queue.table.detail.photoId') }}</p>
-                        <p class="text-sm capitalize">
-                          {{ row.original.payload.photoId || '-' }}
-                        </p>
-                      </div>
-                      <div>
-                        <p class="text-xs text-neutral-500">
-                          {{ $t('dashboard.queue.table.id') }}
-                        </p>
-                        <p class="font-mono text-sm">{{ row.original.id }}</p>
-                      </div>
-                      <div>
-                        <p class="text-xs text-neutral-500">
-                          {{ $t('dashboard.queue.table.type') }}
-                        </p>
-                        <p class="text-sm capitalize">
-                          {{ row.original.payload.type }}
-                        </p>
-                      </div>
-                    </div>
-
-                    <!-- 错误信息（仅在失败状态显示） -->
-                    <div
-                      v-if="
-                        row.original.status === 'failed' &&
-                        row.original.errorMessage
-                      "
-                      class="mt-3"
-                    >
-                      <p class="text-xs text-neutral-500 mb-1">
-                        {{ $t('dashboard.queue.table.errorMessage') }}
-                      </p>
-                      <div
-                        class="p-3 bg-red-50 dark:bg-red-950/20 rounded border border-red-100 dark:border-red-900/30"
-                      >
-                        <p
-                          class="text-sm text-red-700 dark:text-red-300 wrap-break-word font-mono"
-                        >
-                          {{ row.original.errorMessage }}
-                        </p>
-                      </div>
-                    </div>
-
-                    <!-- Payload 信息 -->
-                    <div
-                      v-if="row.original.payload"
-                      class="mt-3"
-                    >
-                      <p class="text-xs text-gray-500 mb-1">{{ $t('dashboard.queue.table.detail.payload') }}</p>
-                      <pre
-                        class="text-xs bg-neutral-100/50 dark:bg-neutral-800/50 p-2 rounded overflow-x-auto text-neutral-700 dark:text-neutral-300"
-                        >{{
-                          JSON.stringify(row.original.payload, null, 2)
-                        }}</pre
-                      >
-                    </div>
-                  </div>
-                </div>
-              </template>
             </UTable>
           </div>
         </UCard>
       </div>
+
+      <!-- 任务详情抽屉（原内联展开行内容;虚拟化固定行高与变高展开行冲突,故移入抽屉） -->
+      <USlideover
+        v-model:open="isDetailOpen"
+        :title="$t('dashboard.queue.table.detail.title')"
+        :ui="{
+          content: 'sm:max-w-lg',
+          body: 'p-4 sm:p-6',
+        }"
+      >
+        <template #body>
+          <!-- 轮询刷新后任务可能已消失(如被清理):提示但不强关,用户可能正在读堆栈 -->
+          <UAlert
+            v-if="!detailTask"
+            icon="tabler:alert-circle"
+            color="warning"
+            variant="soft"
+            :title="$t('dashboard.queue.table.detail.taskGone')"
+          />
+
+          <div
+            v-else
+            class="space-y-4"
+          >
+            <!-- 基本信息 -->
+            <div class="grid grid-cols-2 gap-x-4 gap-y-3">
+              <div>
+                <p class="text-xs text-neutral-500">
+                  {{ $t('dashboard.queue.table.id') }}
+                </p>
+                <p class="font-mono text-sm">{{ detailTask.id }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-neutral-500">
+                  {{ $t('dashboard.queue.table.detail.photoId') }}
+                </p>
+                <p class="text-sm break-all">
+                  {{ detailTask.payload?.photoId || '-' }}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs text-neutral-500">
+                  {{ $t('dashboard.queue.table.type') }}
+                </p>
+                <UBadge
+                  :label="$t(`dashboard.queue.types.${detailTask.payload.type}`)"
+                  variant="soft"
+                  :color="
+                    detailTask.payload.type === 'photo' ? 'info' : 'secondary'
+                  "
+                  size="sm"
+                />
+              </div>
+              <div>
+                <p class="text-xs text-neutral-500">
+                  {{ $t('dashboard.queue.table.status') }}
+                </p>
+                <UBadge
+                  :label="$t(`dashboard.queue.status.${detailTask.status}`)"
+                  variant="soft"
+                  :color="getStatusColor(detailTask.status)"
+                  size="sm"
+                />
+              </div>
+              <div>
+                <p class="text-xs text-neutral-500">
+                  {{ $t('dashboard.queue.table.attempts') }}
+                </p>
+                <p class="text-sm">
+                  {{ detailTask.attempts }}/{{ detailTask.maxAttempts }}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs text-neutral-500">
+                  {{ $t('dashboard.queue.table.stage') }}
+                </p>
+                <p class="text-sm">
+                  {{
+                    detailTask.statusStage
+                      ? $t(`dashboard.queue.stages.${detailTask.statusStage}`)
+                      : '-'
+                  }}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs text-neutral-500">
+                  {{ $t('dashboard.queue.table.createdAt') }}
+                </p>
+                <p class="text-sm">
+                  {{ $dayjs(detailTask.createdAt).format('MM-DD HH:mm:ss') }}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs text-neutral-500">
+                  {{ $t('dashboard.queue.table.completedAt') }}
+                </p>
+                <p class="text-sm">
+                  {{
+                    detailTask.completedAt
+                      ? $dayjs(detailTask.completedAt).format('MM-DD HH:mm:ss')
+                      : '-'
+                  }}
+                </p>
+              </div>
+            </div>
+
+            <!-- 错误信息（仅失败状态） -->
+            <div
+              v-if="detailTask.status === 'failed' && detailTask.errorMessage"
+            >
+              <p class="text-xs text-neutral-500 mb-1">
+                {{ $t('dashboard.queue.table.errorMessage') }}
+              </p>
+              <div
+                class="p-3 bg-red-50 dark:bg-red-950/20 rounded border border-red-100 dark:border-red-900/30 max-h-64 overflow-auto"
+              >
+                <p
+                  class="text-sm text-red-700 dark:text-red-300 whitespace-pre-wrap wrap-break-word font-mono"
+                >
+                  {{ detailTask.errorMessage }}
+                </p>
+              </div>
+            </div>
+
+            <!-- Payload 信息 -->
+            <div v-if="detailTask.payload">
+              <p class="text-xs text-gray-500 mb-1">
+                {{ $t('dashboard.queue.table.detail.payload') }}
+              </p>
+              <pre
+                class="text-xs bg-neutral-100/50 dark:bg-neutral-800/50 p-2 rounded overflow-auto max-h-64 text-neutral-700 dark:text-neutral-300"
+                >{{ JSON.stringify(detailTask.payload, null, 2) }}</pre
+              >
+            </div>
+          </div>
+        </template>
+
+        <template #footer>
+          <div class="flex items-center gap-2 w-full justify-end">
+            <UButton
+              v-if="detailTask && detailTask.status === 'failed'"
+              icon="tabler:refresh"
+              variant="soft"
+              color="warning"
+              @click="retryTask(detailTask.id)"
+            >
+              {{ $t('dashboard.queue.buttons.retry') }}
+            </UButton>
+            <UButton
+              v-if="detailTask && detailTask.status !== 'in-stages'"
+              icon="tabler:trash"
+              variant="soft"
+              color="error"
+              @click="deleteTask(detailTask.id)"
+            >
+              {{ $t('dashboard.queue.buttons.delete') }}
+            </UButton>
+          </div>
+        </template>
+      </USlideover>
     </template>
   </UDashboardPanel>
 </template>

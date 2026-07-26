@@ -936,9 +936,12 @@
         "completedAt": "完成時間",
         "actions": "操作",
         "expandAria": "展開",
+        "detailAria": "查看詳情",
         "detail": {
           "photoId": "相片 ID",
-          "payload": "酬載"
+          "payload": "酬載",
+          "title": "任務詳情",
+          "taskGone": "該任務已不存在"
         }
       },
       "status": {

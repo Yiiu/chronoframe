@@ -936,9 +936,12 @@
         "completedAt": "完了日時",
         "actions": "操作",
         "expandAria": "展開",
+        "detailAria": "詳細を表示",
         "detail": {
           "photoId": "写真ID",
-          "payload": "ペイロード"
+          "payload": "ペイロード",
+          "title": "タスク詳細",
+          "taskGone": "このタスクは存在しません"
         }
       },
       "status": {

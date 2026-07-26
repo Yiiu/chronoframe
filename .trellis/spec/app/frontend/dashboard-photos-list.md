@@ -164,6 +164,34 @@ reactionsData.value = { ...reactionsData.value, ...data }   // 合并不替换
 // catch { toast.add({ title: t('…reactionsFetchFailed'), color: 'error' }) }
 ```
 
+### Gotcha 5:虚拟行内的缩略图禁用 `instant`——进场即解码 = 滚动 decode 风暴
+
+2026-07-26 `dashboard-tables-perf-2` prod 实测(2243 行,24×wheel(0,500)@100ms 标准手势):
+表格缩略图 `ThumbImage` 挂 `instant`(跳过 IO 懒加载与 thumbhash 占位)时,
+**每滚进一行就同步触发一次真实缩略图解码**——ImageDecodeTask 恒等于滚过行数(124),
+decode 跨线程总耗时 1.86s 占 2.65s 滚动窗口的 66-79%,压住帧提交(滚动期仅出 24-30 帧)。
+
+#### Wrong
+```vue
+<!-- instant 是给 masonry 虚拟墙"已加载图 remount"用的(跳过占位直出),
+     虚拟表格行进场是首次加载,不适用 -->
+<ThumbImage :src="..." instant />
+```
+#### Correct
+```vue
+<!-- 默认行为即正解:thumbhash 占位常驻 + IO 懒加载 + img 300ms 淡入;
+     ThumbImage 的 <img> 另有 loading="lazy" + decoding="async" -->
+<ThumbImage :src="..." :thumbhash="row.original.thumbnailHash || ''" />
+```
+
+修复后同手势:>50ms 长任务 3→0、最长 57.5→41.3ms、滚动期出帧 24-30→409
+(p50 帧间隔 6.4ms)。注意 ImageDecodeTask **计数**反而升高(占位图也是 img)——
+判定指标是"解码是否异步、是否阻塞主线程/帧提交",不是解码次数。
+
+> **Warning**:profile 手势用 headless `mouse.wheel` 步进时,每步只出 1 帧,
+> ">16.7ms 帧占比"天然接近 100%,该指标只能同手势相对比较。达标判定用
+> "无 >50ms 长任务 + 帧提交连续性"。
+
 ## Design Decisions
 
 - **exif 分层 vs 整体压缩**:选"列表 slim + 详情全量"两端点,而非压缩单一端点。列表/网格/地图

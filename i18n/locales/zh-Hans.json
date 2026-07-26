@@ -1010,9 +1010,12 @@
         "completedAt": "完成时间",
         "actions": "操作",
         "expandAria": "展开",
+        "detailAria": "查看详情",
         "detail": {
           "photoId": "照片 ID",
-          "payload": "负载"
+          "payload": "负载",
+          "title": "任务详情",
+          "taskGone": "该任务已不存在"
         }
       },
       "status": {

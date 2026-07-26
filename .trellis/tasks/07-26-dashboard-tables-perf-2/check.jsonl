@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/app/frontend/dashboard-photos-list.md", "reason": "photos 表回归检查清单(Bad cases:431/DOM 行数/sticky/popover)"}
+{"file": ".trellis/spec/app/frontend/index.md", "reason": "前端契约索引"}

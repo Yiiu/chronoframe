@@ -1816,7 +1816,6 @@ watch(isImagePreviewOpen, (open) => {
                       $t('dashboard.photos.table.thumbnailAlt')
                     "
                     :thumbhash="row.original.thumbnailHash || ''"
-                    instant
                     class="size-16 object-cover rounded-md shadow"
                     :style="{
                       cursor: row.original.thumbnailUrl ? 'pointer' : 'default',
