@@ -44,6 +44,12 @@ const detailTask = computed(() => queueData.value?.data?.find(t => t.id === deta
   虚拟化失效(DOM 全量)。
 - 锁行高手段:`:ui.td = 'px-4 py-2.5 whitespace-nowrap'`(全单元格单行),
   详情按钮 size="xs"。
+- **锁列宽(防表头抖动)**:`:ui.base` 必须含 `table-fixed`,且每列在 `meta.class.th`
+  显式定宽(w-14/w-20/...)。默认 `table-layout: auto` 下列宽由**当前可见行内容**算出,
+  虚拟滚动不断更换可见行集合 → 浏览器反复重算列宽 → 表头抖动(实测;photos 表上轮
+  就带了 table-fixed 所以不抖)。fixed 布局列宽只由表头决定,与行内容解耦——
+  实测 6 个滚动采样点表头宽度逐像素一致。定宽按该列**最长内容**留足
+  (类型列"照片逆地理编码" badge → w-40),配合 whitespace-nowrap 不会换行撑高。
 
 ## 4. Validation & Error Matrix
 
@@ -64,6 +70,7 @@ const detailTask = computed(() => queueData.value?.data?.find(t => t.id === deta
 - **Bad(必须挡住的回归)**:
   - `<tr>` 数 ≈ 数据行数 → 高度约束链断了(查 min-h-0)或 `:virtualize` 掉了
   - 行高不再是 49 却没同步改 `QUEUE_ROW_HEIGHT` → 滚动条跳
+  - 滚动时表头列宽抖动 → `table-fixed` 被去掉或新增列没定宽
   - 有人加回 `v-model:expanded` / `#expanded` → 与虚拟化冲突,见核心禁令
 
 ## 6. Tests Required

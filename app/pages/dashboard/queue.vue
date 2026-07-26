@@ -249,35 +249,47 @@ const columns = computed<TableColumn<any>[]>(() => [
       }),
     enableSorting: false,
     enableHiding: false,
+    // table-fixed 下列宽只由表头 th 决定（见模板 ui.base 注释），每列显式定宽,
+    // 否则虚拟滚动中可见行内容变化会让 auto 布局反复重算列宽 → 表头抖动。
+    meta: { class: { th: 'w-14' } },
   },
   {
     accessorKey: 'id',
     header: $t('dashboard.queue.table.id'),
+    meta: { class: { th: 'w-20' } },
   },
   {
     id: 'type',
     accessorFn: (row) => row.payload.type,
     header: $t('dashboard.queue.table.type'),
+    // 最长内容:"照片逆地理编码" badge
+    meta: { class: { th: 'w-40' } },
   },
   {
     accessorKey: 'status',
     header: $t('dashboard.queue.table.status'),
+    meta: { class: { th: 'w-24' } },
   },
   {
     accessorKey: 'attempts',
     header: $t('dashboard.queue.table.attempts'),
+    meta: { class: { th: 'w-20' } },
   },
   {
     accessorKey: 'priority',
     header: $t('dashboard.queue.table.priority'),
+    meta: { class: { th: 'w-20' } },
   },
   {
     accessorKey: 'statusStage',
     header: $t('dashboard.queue.table.stage'),
+    meta: { class: { th: 'w-28' } },
   },
   {
     accessorKey: 'createdAt',
     header: $t('dashboard.queue.table.createdAt'),
+    // "MM-DD HH:mm:ss"
+    meta: { class: { th: 'w-36' } },
   },
   {
     id: 'actions',
@@ -285,7 +297,7 @@ const columns = computed<TableColumn<any>[]>(() => [
     // 手写 sticky 固定列（同 photos 表）：column-pinning 在 :virtualize 下失效。
     meta: {
       class: {
-        th: 'sticky right-0 z-[2] bg-neutral-50/80 dark:bg-neutral-900/80 backdrop-blur-md',
+        th: 'w-44 sticky right-0 z-[2] bg-neutral-50/80 dark:bg-neutral-900/80 backdrop-blur-md',
         td: 'sticky right-0 z-[1] bg-white dark:bg-neutral-900',
       },
     },
@@ -410,7 +422,9 @@ onBeforeUnmount(() => {
               class="w-full h-full flex-1"
               :ui="{
                 wrapper: 'relative h-full overflow-auto',
-                base: 'min-w-full',
+                // table-fixed:列宽由表头决定、与行内容解耦。虚拟滚动下可见行集合
+                // 不断更换,auto 布局会按可见内容反复重算列宽 → 表头抖动(实测)。
+                base: 'min-w-full table-fixed',
                 thead:
                   'bg-neutral-50/80 dark:bg-neutral-900/80 backdrop-blur-md sticky top-0 z-10 whitespace-nowrap',
                 td: 'px-4 py-2.5 whitespace-nowrap',
