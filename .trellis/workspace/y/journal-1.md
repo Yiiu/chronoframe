@@ -38,3 +38,36 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 2: Dashboard tables perf round 2:photos 滚动卡顿修复 + queue 虚拟化抽屉
+
+**Date**: 2026-07-26
+**Task**: Dashboard tables perf round 2:photos 滚动卡顿修复 + queue 虚拟化抽屉
+**Branch**: `main`
+
+### Summary
+
+grilling 定案后按 profile 驱动完成两个里程碑。M1:prod 基线 5 次取中位实锤缩略图 instant 进场即解码为滚动卡顿头号根因(ImageDecodeTask 恒=滚过行数 124,decode 占滚动窗口 66-79%),仅 2 行修复(去 instant + decoding=async),同手势复测 >50ms 长任务 3→0、出帧 24-30→409,候选 2/3/4 按数据均未需要。M2:queue 表锁行高 49(实测零偏差)+ 虚拟化 + 手写 sticky,内联展开改 USlideover 抽屉(detailTaskId 存 id、跨轮询同步不强关),2415 行 DOM 恒 ~21 行。验证事故如实记录:驱动脚本 hasText 子串匹配误点'重试全部失败'触发真实 retry-batch(无数据丢失,教训入 spec)。子代理通道中途因条款/登录 API 错误两次中断,M2 与质量检查降级为主会话内联完成。spec 更新:photos 篇 Gotcha 5(instant 禁令)+ 新增 queue 篇(变高行禁令/抽屉契约/高度约束链)。种子与临时端点全清,lint+test 绿,提交 47507ac。
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `47507ac` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
