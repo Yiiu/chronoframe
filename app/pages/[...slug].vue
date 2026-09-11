@@ -19,7 +19,7 @@ const currentPhoto = computed(() =>
   photos.value.find((photo) => photo.id === photoId.value),
 )
 
-defineOgImageComponent('Photo', {
+defineOgImage('Photo', {
   headline: currentPhoto.value ? 'PHOTO' : 'ChronoFrame',
   title: currentPhoto.value?.title || getSetting('app:title'),
   description: currentPhoto.value

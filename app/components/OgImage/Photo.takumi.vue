@@ -105,7 +105,7 @@ const description = computed(() => (props.description || '').slice(0, 200))
         class="flex flex-row items-center flex-wrap gap-4 max-w-full text-neutral-300 text-4xl font-medium mt-8"
       >
         <div
-          class="rounded-3xl border-4 border-neutral-300/30 bg-neutral-300/20 backdrop-blur-2xl px-6 py-4 flex items-center gap-3"
+          class="rounded-3xl border-4 border-neutral-300/30 bg-neutral-300/20 px-6 py-4 flex items-center gap-3"
         >
           <Icon
             name="streamline:image-accessories-lenses-photos-camera-shutter-picture-photography-pictures-photo-lens"
@@ -117,7 +117,7 @@ const description = computed(() => (props.description || '').slice(0, 200))
           </span>
         </div>
         <div
-          class="rounded-3xl border-4 border-neutral-300/30 bg-neutral-300/20 backdrop-blur-2xl px-6 py-4 flex items-center gap-3"
+          class="rounded-3xl border-4 border-neutral-300/30 bg-neutral-300/20 px-6 py-4 flex items-center gap-3"
         >
           <Icon
             name="tabler:aperture"
@@ -127,7 +127,7 @@ const description = computed(() => (props.description || '').slice(0, 200))
           <span class="truncate"> f/{{ photo.exif?.FNumber || '—' }} </span>
         </div>
         <div
-          class="rounded-3xl border-4 border-neutral-300/30 bg-neutral-300/20 backdrop-blur-2xl px-6 py-4 flex items-center gap-3"
+          class="rounded-3xl border-4 border-neutral-300/30 bg-neutral-300/20 px-6 py-4 flex items-center gap-3"
         >
           <Icon
             name="material-symbols:shutter-speed"
@@ -137,7 +137,7 @@ const description = computed(() => (props.description || '').slice(0, 200))
           <span class="truncate"> {{ photo.exif?.ExposureTime || '—' }}s </span>
         </div>
         <div
-          class="rounded-3xl border-4 border-neutral-300/30 bg-neutral-300/20 backdrop-blur-2xl px-6 py-4 flex items-center gap-3"
+          class="rounded-3xl border-4 border-neutral-300/30 bg-neutral-300/20 px-6 py-4 flex items-center gap-3"
         >
           <Icon
             name="carbon:iso-outline"
