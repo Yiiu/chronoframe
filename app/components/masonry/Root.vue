@@ -180,20 +180,14 @@ const handleOpenViewer = (index: number) => {
       class="lg:px-0 lg:pb-0"
       :class="isMobile ? 'px-1 pb-1' : 'p-1'"
     >
+      <SiteHeader :total="photoStats.total" />
       <MasonryVirtualWall
         :photos="displayPhotos"
         :viewer-photos="props.photos"
         :columns="props.columns"
         @open-viewer="handleOpenViewer"
         @visible-change="handleVisibleChange"
-      >
-        <template #header>
-          <MasonryItemHeader
-            :stats="photoStats"
-            :date-range-text
-          />
-        </template>
-      </MasonryVirtualWall>
+      />
     </div>
   </div>
 </template>
