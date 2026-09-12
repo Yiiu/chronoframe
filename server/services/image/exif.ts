@@ -83,6 +83,29 @@ const neededKeys: Array<keyof Tags | (string & {})> = [
 
   'MPImageType',
 
+  // Fuji makernote fields, grouped into `fujiRecipe` below
+  'FilmMode',
+  'GrainEffectRoughness',
+  'GrainEffectSize',
+  'ColorChromeEffect',
+  'ColorChromeFXBlue',
+  'DynamicRange',
+  'DynamicRangeSetting',
+  'DevelopmentDynamicRange',
+  'ColorTemperature',
+  'HighlightTone',
+  'ShadowTone',
+  'Saturation',
+  'Sharpness',
+  'NoiseReduction',
+  'Clarity',
+
+  // 对焦信息（目前仅富士 makernote 提供，FocusPixel 为对焦点像素坐标）
+  'FocusMode2',
+  'AFMode',
+  'AFAreaMode',
+  'FocusPixel',
+
   // Motion Photo (XMP) related keys
   'MotionPhoto',
   'MotionPhotoVersion',
@@ -278,6 +301,30 @@ const processExifData = (exifData: Tags, metadata: Metadata): NeededExif => {
   } else if (!result.ColorSpace) {
     // 推断失败且 exif 中也没有 ColorSpace
     // ignore
+  }
+
+  // 富士机身才有 FilmMode 标签，有则把胶片模拟设置组装成 fujiRecipe，
+  // 前端以 exif.fujiRecipe 的存在与否作为"富士照片"的判断依据
+  if (exifData.FilmMode) {
+    result.fujiRecipe = {
+      FilmMode: exifData.FilmMode,
+      GrainEffectRoughness: exifData.GrainEffectRoughness,
+      GrainEffectSize: exifData.GrainEffectSize,
+      ColorChromeEffect: exifData.ColorChromeEffect,
+      ColorChromeFXBlue: exifData.ColorChromeFXBlue,
+      DynamicRange: exifData.DynamicRange,
+      DynamicRangeSetting: exifData.DynamicRangeSetting,
+      DevelopmentDynamicRange: exifData.DevelopmentDynamicRange,
+      WhiteBalance: exifData.WhiteBalance,
+      WhiteBalanceFineTune: exifData.WhiteBalanceFineTune,
+      ColorTemperature: exifData.ColorTemperature,
+      HighlightTone: exifData.HighlightTone,
+      ShadowTone: exifData.ShadowTone,
+      Saturation: exifData.Saturation,
+      Sharpness: exifData.Sharpness,
+      NoiseReduction: exifData.NoiseReduction,
+      Clarity: exifData.Clarity,
+    }
   }
 
   return {

@@ -2,6 +2,7 @@
 import { twMerge } from 'tailwind-merge'
 import {
   calculateHistogramCompressed,
+  calculateToneDistribution,
   drawHistogramToCanvas,
   type HistogramDataCompressed,
 } from '~/libs/histogram'
@@ -10,12 +11,19 @@ const props = defineProps<{
   thumbnailUrl: string
   options?: Parameters<typeof drawHistogramToCanvas>[2]
   class?: string
+  /** 显示暗部/中间调/高光占比读数行 */
+  showToneStats?: boolean
 }>()
 
 const canvasRef = useTemplateRef('canvasRef')
 const isLoading = ref(true)
 const isError = ref(false)
 const histogramData = ref<HistogramDataCompressed | null>(null)
+
+const toneStats = computed(() => {
+  if (!histogramData.value) return null
+  return calculateToneDistribution(histogramData.value.gray)
+})
 
 // 跟踪当前加载的缩略图，以便在切换时打断加载
 let currentImage: HTMLImageElement | null = null
@@ -104,7 +112,7 @@ onUnmounted(cleanup)
 
 <template>
   <div
-    :class="twMerge('relative w-full h-32 group overflow-hidden', $props.class)"
+    :class="twMerge('relative w-full h-32 group overflow-hidden flex flex-col', $props.class)"
   >
     <Transition name="fade">
       <div
@@ -134,9 +142,26 @@ onUnmounted(cleanup)
       <canvas
         v-if="histogramData"
         ref="canvasRef"
-        class="w-full h-full rounded-lg backdrop-blur-xl"
+        class="w-full flex-1 min-h-0 rounded-lg backdrop-blur-xl"
       />
     </Transition>
+    <div
+      v-if="showToneStats && toneStats"
+      class="flex items-center justify-between mt-2.5 text-[10.5px]"
+    >
+      <span class="text-white/55"
+        >{{ $t('exif.histogram.shadows') }}
+        <b class="text-xs text-white font-semibold tabular-nums">{{ toneStats.shadows }}%</b></span
+      >
+      <span class="text-white/55"
+        >{{ $t('exif.histogram.midtones') }}
+        <b class="text-xs text-white font-semibold tabular-nums">{{ toneStats.midtones }}%</b></span
+      >
+      <span class="text-white/55"
+        >{{ $t('exif.histogram.highlights') }}
+        <b class="text-xs text-white font-semibold tabular-nums">{{ toneStats.highlights }}%</b></span
+      >
+    </div>
   </div>
 </template>
 

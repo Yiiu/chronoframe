@@ -51,7 +51,8 @@
         "tooltip": "ログアウト"
       },
       "globe": {
-        "tooltip": "グローブ"
+        "tooltip": "グローブ",
+        "label": "地図"
       },
       "home": {
         "tooltip": "ホームに戻る"
@@ -226,7 +227,10 @@
       "shooting": {
         "parameters": "撮影パラメータ",
         "mode": "撮影モード"
-      }
+      },
+      "filmSimulation": "フィルムシミュレーション",
+      "cameraFiles": "カメラとファイル",
+      "location": "位置"
     },
     "aperture": "絞り値",
     "dateTaken": {
@@ -376,9 +380,59 @@
         "iccProfile": "ICC プロファイル",
         "uncalibrated": "未調整",
         "rgb": "RGB"
+      },
+      "fujiStrength": {
+        "off": "オフ",
+        "weak": "弱",
+        "strong": "強"
+      },
+      "fujiGrainSize": {
+        "off": "オフ",
+        "small": "小",
+        "large": "大"
+      },
+      "fujiSharpness": {
+        "hard": "ハード",
+        "normal": "標準",
+        "soft": "ソフト"
+      },
+      "afAreaMode": {
+        "singlePoint": "シングルポイント",
+        "zone": "ゾーン",
+        "wide": "ワイド",
+        "multi": "マルチ"
       }
     },
-    "iso": "ISO"
+    "iso": "ISO",
+    "filmSimulation": {
+      "mode": "フィルムモード",
+      "dynamicRange": "ダイナミックレンジ",
+      "grainStrength": "グレイン効果",
+      "grainSize": "グレインサイズ",
+      "colorChrome": "カラークローム効果",
+      "colorChromeBlue": "カラークロームFXブルー",
+      "highlightTone": "ハイライトトーン",
+      "shadowTone": "シャドウトーン",
+      "saturation": "彩度",
+      "sharpness": "シャープネス",
+      "noiseReduction": "ノイズリダクション",
+      "clarity": "クリアリティ",
+      "colorTemperature": "色温度"
+    },
+    "histogram": {
+      "shadows": "シャドウ",
+      "midtones": "中間調",
+      "highlights": "ハイライト"
+    },
+    "param": {
+      "focal": "35mm 換算",
+      "aperture": "絞り",
+      "shutter": "シャッター",
+      "iso": "感度"
+    },
+    "focus": {
+      "title": "フォーカス"
+    }
   },
   "title": {
     "gallery": "ギャラリー",
@@ -545,7 +599,8 @@
         "eraseLocationInfo": "位置情報を抹消",
         "delete": "削除",
         "editMetadata": "メタデータを編集",
-        "previewPhoto": "プレビュー写真"
+        "previewPhoto": "プレビュー写真",
+        "reindexExif": "EXIF を再インデックス"
       },
       "selection": {
         "selected": "{count} / {total}行選択済み",
@@ -663,7 +718,9 @@
         "batchEraseLocationFailed": "位置情報抹消タスクの一括追加に失敗しました",
         "taskSubmitFailed": "タスクの送信に失敗しました",
         "taskStatusCheckFailed": "タスク状態の確認に失敗しました",
-        "uploadFailed": "アップロードに失敗しました"
+        "uploadFailed": "アップロードに失敗しました",
+        "reindexExifSuccess": "EXIF の再インデックスに成功しました",
+        "reindexExifFailed": "EXIF の再インデックスに失敗しました"
       },
       "errors": {
         "noSelection": "アップロードする写真を選択してください",

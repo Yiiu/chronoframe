@@ -34,7 +34,8 @@
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "brand-logos": "node scripts/generate-brand-logos.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1129.0",
@@ -107,6 +108,7 @@
     "oxfmt": "^0.54.0",
     "oxlint": "^1.82.0",
     "sass-embedded": "^1.104.0",
+    "svg-path-bounds": "^1.0.2",
     "typescript": "^5.9.3",
     "vitepress": "2.0.0-alpha.17",
     "vitest": "^5.0.0"

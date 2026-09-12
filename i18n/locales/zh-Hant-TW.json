@@ -60,7 +60,8 @@
         "tooltip": "色彩主題"
       },
       "globe": {
-        "tooltip": "地球儀"
+        "tooltip": "地球儀",
+        "label": "地圖"
       },
       "home": {
         "tooltip": "返回首頁"
@@ -223,7 +224,10 @@
       "shooting": {
         "parameters": "拍攝參數",
         "mode": "拍攝模式"
-      }
+      },
+      "filmSimulation": "軟片模擬",
+      "cameraFiles": "相機與檔案",
+      "location": "位置"
     },
     "aperture": "光圈",
     "filename": "檔名",
@@ -373,9 +377,59 @@
         "iccProfile": "ICC 設定檔",
         "uncalibrated": "未校正",
         "rgb": "RGB"
+      },
+      "fujiStrength": {
+        "off": "關",
+        "weak": "弱",
+        "strong": "強"
+      },
+      "fujiGrainSize": {
+        "off": "關",
+        "small": "小",
+        "large": "大"
+      },
+      "fujiSharpness": {
+        "hard": "硬",
+        "normal": "標準",
+        "soft": "軟"
+      },
+      "afAreaMode": {
+        "singlePoint": "單點對焦",
+        "zone": "區域對焦",
+        "wide": "廣域對焦",
+        "multi": "多點對焦"
       }
     },
-    "iso": "ISO"
+    "iso": "ISO",
+    "filmSimulation": {
+      "mode": "軟片模擬",
+      "dynamicRange": "動態範圍",
+      "grainStrength": "顆粒效果",
+      "grainSize": "顆粒效果尺寸",
+      "colorChrome": "彩色Chrome效果",
+      "colorChromeBlue": "彩色Chrome藍色效果",
+      "highlightTone": "亮部色調",
+      "shadowTone": "陰影色調",
+      "saturation": "飽和度",
+      "sharpness": "銳利度",
+      "noiseReduction": "降噪",
+      "clarity": "清晰度",
+      "colorTemperature": "色溫"
+    },
+    "histogram": {
+      "shadows": "暗部",
+      "midtones": "中間調",
+      "highlights": "亮部"
+    },
+    "param": {
+      "focal": "35mm 等效",
+      "aperture": "光圈",
+      "shutter": "快門",
+      "iso": "感光度"
+    },
+    "focus": {
+      "title": "對焦"
+    }
   },
   "plural": {
     "photo": "沒有相片 | 一張相片 | {count} 張相片"
@@ -545,7 +599,8 @@
         "eraseLocationInfo": "抹除位置資訊",
         "delete": "刪除",
         "editMetadata": "編輯資訊",
-        "previewPhoto": "照片預覽"
+        "previewPhoto": "照片預覽",
+        "reindexExif": "重新索引 EXIF"
       },
       "selection": {
         "selected": "已選擇 {count} / {total} 列",
@@ -663,7 +718,9 @@
         "batchEraseLocationFailed": "批量抹除位置資訊任務新增失敗",
         "taskSubmitFailed": "提交任務失敗",
         "taskStatusCheckFailed": "檢查任務狀態失敗",
-        "uploadFailed": "上傳失敗"
+        "uploadFailed": "上傳失敗",
+        "reindexExifSuccess": "EXIF 重新索引成功",
+        "reindexExifFailed": "EXIF 重新索引失敗"
       },
       "errors": {
         "noSelection": "請選擇照片進行上傳",

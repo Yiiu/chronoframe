@@ -223,7 +223,18 @@ onUnmounted(() => {
       :debug="showDebugInfo"
       @zoom-change="handleZoomChange"
       @loading-state-change="handleWebGLStateChange"
-    />
+    >
+      <!-- 透传 overlay：调用方可拿到实时视图变换，在画面上同步标注 -->
+      <template
+        v-if="$slots.overlay"
+        #overlay="{ transform }"
+      >
+        <slot
+          name="overlay"
+          :transform="transform"
+        />
+      </template>
+    </WebGLImageViewer>
 
     <!-- 错误状态 -->
     <div

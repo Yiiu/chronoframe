@@ -3,17 +3,29 @@ import { computed } from 'vue'
 import { motion } from 'motion-v'
 import type { NeededExif } from '../../../shared/types/photo'
 import type { KVData } from './KVRenderer.vue'
+import RatingStars from './RatingStars.vue'
 import {
-  formatCameraInfo,
   formatExposureTime,
-  formatLensInfo,
+  splitCameraBrand,
+  splitLensBrand,
 } from '~/utils/camera'
+import {
+  cleanExifAnnotation,
+  formatFujiDynamicRange,
+  formatFujiFilmMode,
+} from '~/utils/fuji-recipe'
 
 interface Props {
   currentPhoto: Photo
   exifData?: NeededExif | null
   onClose?: () => void
+  /** 对焦点标记是否开启（点亮"对焦"卡片） */
+  focusMarkerActive?: boolean
 }
+
+const emit = defineEmits<{
+  (e: 'toggleFocusMarker'): void
+}>()
 
 interface Album {
   id: number
@@ -26,7 +38,7 @@ interface Album {
 
 const dayjs = useDayjs()
 const router = useRouter()
-const { localizeExif } = useExifLocalization()
+const { localizeExif, localizeExifSafe } = useExifLocalization()
 
 const props = defineProps<Props>()
 
@@ -40,7 +52,34 @@ const { data: _albums } = useFetch<Album[]>(
 
 const albums = computed(() => _albums.value || [])
 
-// 格式化曝光时间
+// 富士胶片模拟设置，非富士照片（无 FilmMode 标签）为 null
+const fujiRecipe = computed(() => props.exifData?.fujiRecipe ?? null)
+
+const fujiFilmMode = computed(() =>
+  fujiRecipe.value?.FilmMode
+    ? formatFujiFilmMode(String(fujiRecipe.value.FilmMode))
+    : null,
+)
+
+// 富士白平衡：Kelvin 模式用色温插值，其余走现有白平衡枚举翻译
+const fujiWhiteBalance = computed(() => {
+  const recipe = fujiRecipe.value
+  if (!recipe?.WhiteBalance) return null
+  const wb = String(recipe.WhiteBalance)
+  if (wb === 'Kelvin' && recipe.ColorTemperature) {
+    return `${String(recipe.ColorTemperature).replace(/[^0-9]/g, '')}K`
+  }
+  return localizeExifSafe('whiteBalance', wb)
+})
+
+// 品牌 logo 拆分（相机/镜头行在值区渲染字标）
+const cameraParts = computed(() =>
+  splitCameraBrand(props.exifData?.Make, props.exifData?.Model),
+)
+const lensParts = computed(() =>
+  splitLensBrand(props.exifData?.LensMake, props.exifData?.LensModel),
+)
+
 // 格式化GPS坐标为两行显示
 const formatGPSCoordinatesMultiLine = (
   latitude: number,
@@ -53,11 +92,10 @@ const formatGPSCoordinatesMultiLine = (
   const lngDegrees = Math.abs(longitude)
 
   const latDeg = Math.floor(latDegrees)
-  const latMin = Math.floor((latDegrees - latDeg) * 60)
-  const latSec = ((latDegrees - latDeg) * 60 - latMin) * 60
-
   const lngDeg = Math.floor(lngDegrees)
+  const latMin = Math.floor((latDegrees - latDeg) * 60)
   const lngMin = Math.floor((lngDegrees - lngDeg) * 60)
+  const latSec = ((latDegrees - latDeg) * 60 - latMin) * 60
   const lngSec = ((lngDegrees - lngDeg) * 60 - lngMin) * 60
 
   return `${latDeg}°${latMin}'${latSec.toFixed(2)}"${latDirection}\n${lngDeg}°${lngMin}'${lngSec.toFixed(2)}"${lngDirection}`
@@ -84,35 +122,116 @@ const gpsCoordinates = computed(() => {
   return null
 })
 
+// ① 信息芯片行：分辨率 / 文件大小 / 拍摄时间
+const infoChips = computed(() => {
+  const photo = props.currentPhoto
+  const chips: { icon: string; text: string }[] = []
+  if (photo.width && photo.height) {
+    chips.push({
+      icon: 'tabler:dimensions',
+      text: `${photo.width} × ${photo.height}`,
+    })
+  }
+  if (photo.fileSize) {
+    chips.push({ icon: 'tabler:database', text: formatBytes(photo.fileSize) })
+  }
+  const dateText = photo.dateTaken || props.exifData?.DateTimeOriginal
+  if (dateText) {
+    chips.push({ icon: 'tabler:calendar', text: dayjs(dateText).format('L LT') })
+  }
+  return chips
+})
+
+// ④ 拍摄参数芯片网格（末位为通栏对焦卡，仅有机身记录对焦信息时出现）
+const paramCards = computed(() => {
+  const exif = props.exifData
+  if (!exif) return []
+  const cards: {
+    icon: string
+    value: string
+    label: string
+    span2?: boolean
+    /** 可点击的对焦卡：切换照片上的对焦点标记 */
+    actionable?: boolean
+  }[] = []
+  if (exif.FocalLengthIn35mmFormat) {
+    cards.push({
+      icon: 'tabler:zoom-in-area',
+      value: `${exif.FocalLengthIn35mmFormat}`,
+      label: $t('exif.param.focal'),
+    })
+  }
+  if (exif.FNumber) {
+    cards.push({
+      icon: 'tabler:aperture',
+      value: `f/${exif.FNumber}`,
+      label: $t('exif.param.aperture'),
+    })
+  }
+  if (exif.ExposureTime) {
+    cards.push({
+      icon: 'tabler:clock',
+      value: formatExposureTime(exif.ExposureTime),
+      label: $t('exif.param.shutter'),
+    })
+  }
+  if (exif.ISO) {
+    cards.push({
+      icon: 'tabler:sun-electricity',
+      value: `ISO ${exif.ISO}`,
+      label: $t('exif.param.iso'),
+    })
+  }
+  const focusParts = [
+    exif.FocusMode2 ? String(exif.FocusMode2) : '',
+    exif.AFAreaMode
+      ? localizeExifSafe('afAreaMode', String(exif.AFAreaMode))
+      : '',
+  ].filter(Boolean)
+  if (focusParts.length > 0) {
+    cards.push({
+      icon: 'tabler:focus-2',
+      value: focusParts.join(' · '),
+      label: $t('exif.focus.title'),
+      span2: true,
+      actionable: true,
+    })
+  }
+  return cards
+})
+
 const formatedExifData = computed<Record<string, KVData[]>>(() => {
   const sections: Record<string, KVData[]> = {}
 
-  // 基本信息
-  sections.basicInfo = [
+  // 相机与文件（原基本信息 + 设备信息合并）
+  sections.cameraFiles = [
     {
-      title: $t('exif.sections.basic'),
+      title: $t('exif.sections.cameraFiles'),
       items: [
-        props.currentPhoto.storageKey
+        props.exifData?.Make && props.exifData?.Model
           ? {
-              label: $t('exif.filename'),
-              value:
-                props.currentPhoto.storageKey.split('/').pop() ||
-                props.currentPhoto.storageKey,
-              icon: 'tabler:file',
+              label: $t('exif.camera'),
+              value: cameraParts.value.displayText,
+              icon: 'tabler:camera',
+              brandLogo: cameraParts.value.logoBrand
+                ? {
+                    name: cameraParts.value.logoBrand,
+                    ratio: cameraParts.value.ratio,
+                  }
+                : null,
             }
           : null,
-        props.currentPhoto.fileSize
+        props.exifData?.LensModel
           ? {
-              label: $t('exif.fileSize'),
-              value: formatBytes(props.currentPhoto.fileSize),
-              icon: 'tabler:database',
-            }
-          : null,
-        props.currentPhoto.width && props.currentPhoto.height
-          ? {
-              label: $t('exif.resolution'),
-              value: `${props.currentPhoto.width} × ${props.currentPhoto.height}`,
-              icon: 'tabler:dimensions',
+              label: $t('exif.lens'),
+              value: lensParts.value.displayText,
+              icon: 'tabler:focus',
+              brandLogo: lensParts.value.logoBrand
+                ? {
+                    name: lensParts.value.logoBrand,
+                    ratio: lensParts.value.ratio,
+                  }
+                : null,
             }
           : null,
         props.currentPhoto.width && props.currentPhoto.height
@@ -122,25 +241,11 @@ const formatedExifData = computed<Record<string, KVData[]>>(() => {
               icon: 'tabler:grid-dots',
             }
           : null,
-        props.exifData?.DateTimeOriginal
-          ? {
-              label: $t('exif.dateTaken.title'),
-              value: dayjs(props.exifData.DateTimeOriginal).format('L LT'),
-              icon: 'tabler:calendar',
-            }
-          : null,
         props.exifData?.ColorSpace
           ? {
               label: $t('exif.colorSpace.title'),
               value: localizeExif('colorSpace', props.exifData.ColorSpace),
               icon: 'tabler:palette',
-            }
-          : null,
-        props.exifData?.Artist
-          ? {
-              label: $t('exif.artist'),
-              value: props.exifData.Artist,
-              icon: 'tabler:user',
             }
           : null,
         props.exifData?.Software
@@ -150,134 +255,25 @@ const formatedExifData = computed<Record<string, KVData[]>>(() => {
               icon: 'tabler:app-window',
             }
           : null,
-        props.exifData?.tz
+        props.currentPhoto.storageKey
           ? {
-              label: $t('exif.tz'),
-              value: props.exifData.tz,
-              icon: 'tabler:world',
-            }
-          : null,
-        props.currentPhoto.country
-          ? {
-              label: $t('exif.country'),
-              value: props.currentPhoto.country,
-              icon: 'tabler:map-pin',
-            }
-          : null,
-        props.currentPhoto.city
-          ? {
-              label: $t('exif.city'),
-              value: props.currentPhoto.city,
-              icon: 'tabler:building',
-            }
-          : null,
-        props.currentPhoto.latitude && props.currentPhoto.longitude
-          ? {
-              label: $t('exif.gps.title'),
-              value: formatGPSCoordinatesMultiLine(
-                props.currentPhoto.latitude,
-                props.currentPhoto.longitude,
-              ),
-              icon: 'tabler:gps',
+              label: $t('exif.filename'),
+              value:
+                props.currentPhoto.storageKey.split('/').pop() ||
+                props.currentPhoto.storageKey,
+              icon: 'tabler:file',
             }
           : null,
       ],
     },
   ]
 
-  // 拍摄参数
-  sections.captureParams = [
-    {
-      title: $t('exif.sections.shooting.parameters'),
-      items: [
-        props.exifData?.FocalLengthIn35mmFormat
-          ? {
-              label: $t('exif.focal.length.actual'),
-              value: `${props.exifData.FocalLengthIn35mmFormat}`,
-              icon: 'tabler:telescope',
-            }
-          : null,
-        props.exifData?.FNumber
-          ? {
-              label: $t('exif.aperture'),
-              value: `f/${props.exifData.FNumber}`,
-              icon: 'tabler:aperture',
-            }
-          : null,
-        props.exifData?.ExposureTime
-          ? {
-              label: $t('exif.exposure.time'),
-              value: formatExposureTime(props.exifData.ExposureTime),
-              icon: 'tabler:clock',
-            }
-          : null,
-        props.exifData?.ISO
-          ? {
-              label: $t('exif.iso'),
-              value: props.exifData.ISO.toString(),
-              icon: 'tabler:sun-electricity',
-            }
-          : null,
-      ],
-    },
-  ]
-
-  // 设备信息
-  sections.deviceInfo = [
-    {
-      title: $t('exif.sections.deviceInfomation'),
-      items: [
-        props.exifData?.Make && props.exifData?.Model
-          ? {
-              label: $t('exif.camera'),
-              value: formatCameraInfo(
-                props.exifData.Make,
-                props.exifData.Model,
-              ),
-              icon: 'tabler:camera',
-            }
-          : null,
-        props.exifData?.LensModel
-          ? {
-              label: $t('exif.lens'),
-              value: formatLensInfo(
-                props.exifData.LensMake,
-                props.exifData.LensModel,
-              ),
-              icon: 'tabler:focus',
-            }
-          : null,
-        props.exifData?.MaxApertureValue
-          ? {
-              label: $t('exif.maxAperture'),
-              value: `f/${props.exifData.MaxApertureValue}`,
-              icon: 'tabler:aperture',
-            }
-          : null,
-        props.exifData?.FocalLength
-          ? {
-              label: $t('exif.focal.length.actual'),
-              value: props.exifData.FocalLength,
-              icon: 'tabler:telescope',
-            }
-          : null,
-        props.exifData?.FocalLengthIn35mmFormat
-          ? {
-              label: $t('exif.focal.length.equivalent'),
-              value: props.exifData.FocalLengthIn35mmFormat,
-              icon: 'tabler:zoom-in-area',
-            }
-          : null,
-      ],
-    },
-  ]
-
-  // 拍摄模式
+  // 拍摄模式（富士照片的白平衡行由胶片模拟分组展示，这里跳过避免重复）
   sections.captureMode = [
     {
       title: $t('exif.sections.shooting.mode'),
       items: [
-        props.exifData?.WhiteBalance
+        !fujiRecipe.value && props.exifData?.WhiteBalance
           ? {
               label: $t('exif.wb.title'),
               value: localizeExif('whiteBalance', props.exifData.WhiteBalance),
@@ -302,13 +298,6 @@ const formatedExifData = computed<Record<string, KVData[]>>(() => {
           ? {
               label: $t('exif.wb.bias'),
               value: `${props.exifData.WhiteBalanceBias}`,
-              icon: 'mdi:white-balance-auto',
-            }
-          : null,
-        props.exifData?.WhiteBalanceFineTune
-          ? {
-              label: $t('exif.wb.fineTune'),
-              value: `${props.exifData.WhiteBalanceFineTune}`,
               icon: 'mdi:white-balance-auto',
             }
           : null,
@@ -367,39 +356,133 @@ const formatedExifData = computed<Record<string, KVData[]>>(() => {
     },
   ]
 
-  // 技术参数
-  sections.technicalParams = [
-    {
-      title: $t('exif.sections.specification'),
-      items: [
-        props.exifData?.BrightnessValue
-          ? {
-              label: $t('exif.brightness.value'),
-              value: `${props.exifData.BrightnessValue.toFixed(1)} EV`,
-              icon: 'tabler:sun',
-            }
-          : null,
-        props.exifData?.SensingMethod
-          ? {
-              label: $t('exif.sensing.method'),
-              value: localizeExif(
-                'sensingMethod',
-                props.exifData.SensingMethod,
-              ),
-              icon: 'tabler:photo-sensor',
-            }
-          : null,
-        props.exifData?.FocalPlaneXResolution &&
-        props.exifData?.FocalPlaneYResolution
-          ? {
-              label: $t('exif.focal.plane.resolution'),
-              value: `${props.exifData.FocalPlaneXResolution.toFixed(2)} x ${props.exifData.FocalPlaneYResolution.toFixed(2)}`,
-              icon: 'tabler:photo-sensor',
-            }
-          : null,
-      ],
-    },
-  ]
+  // 富士胶片模拟（仅富士机身有 FilmMode 标签，KVRenderer 会自动隐藏空分组）
+  if (fujiRecipe.value) {
+    const recipe = fujiRecipe.value
+    const signedNumber = (value: number) =>
+      value > 0 ? `+${value}` : `${value}`
+    // 颗粒强度与尺寸都为 Off 时合并为一行
+    const grainOff =
+      String(recipe.GrainEffectRoughness || '') === 'Off' &&
+      String(recipe.GrainEffectSize || '') === 'Off'
+
+    sections.fujiRecipe = [
+      {
+        title: $t('exif.sections.filmSimulation'),
+        items: [
+          recipe.FilmMode
+            ? {
+                label: $t('exif.filmSimulation.mode'),
+                value: formatFujiFilmMode(String(recipe.FilmMode)),
+                icon: 'mdi:film',
+              }
+            : null,
+          {
+            label: $t('exif.filmSimulation.dynamicRange'),
+            value: formatFujiDynamicRange(
+              recipe.DynamicRangeSetting
+                ? String(recipe.DynamicRangeSetting)
+                : undefined,
+              recipe.DevelopmentDynamicRange,
+            ),
+            icon: 'tabler:contrast',
+          },
+          fujiWhiteBalance.value
+            ? {
+                label: $t('exif.wb.title'),
+                value: fujiWhiteBalance.value,
+                icon: 'mdi:white-balance-auto',
+              }
+            : null,
+          grainOff
+            ? {
+                label: $t('exif.filmSimulation.grainStrength'),
+                value: localizeExifSafe('fujiStrength', 'Off'),
+                icon: 'tabler:grain',
+              }
+            : null,
+          !grainOff && recipe.GrainEffectRoughness
+            ? {
+                label: $t('exif.filmSimulation.grainStrength'),
+                value: localizeExifSafe(
+                  'fujiStrength',
+                  String(recipe.GrainEffectRoughness),
+                ),
+                icon: 'tabler:grain',
+              }
+            : null,
+          !grainOff && recipe.GrainEffectSize
+            ? {
+                label: $t('exif.filmSimulation.grainSize'),
+                value: localizeExifSafe(
+                  'fujiGrainSize',
+                  String(recipe.GrainEffectSize),
+                ),
+                icon: 'tabler:grain',
+              }
+            : null,
+          recipe.ColorChromeEffect
+            ? {
+                label: $t('exif.filmSimulation.colorChrome'),
+                value: localizeExifSafe(
+                  'fujiStrength',
+                  String(recipe.ColorChromeEffect),
+                ),
+                icon: 'tabler:color-swatch',
+              }
+            : null,
+          recipe.ColorChromeFXBlue
+            ? {
+                label: $t('exif.filmSimulation.colorChromeBlue'),
+                value: localizeExifSafe(
+                  'fujiStrength',
+                  String(recipe.ColorChromeFXBlue),
+                ),
+                icon: 'tabler:color-swatch',
+              }
+            : null,
+          recipe.HighlightTone
+            ? {
+                label: $t('exif.filmSimulation.highlightTone'),
+                value: cleanExifAnnotation(String(recipe.HighlightTone)),
+                icon: 'tabler:sun-high',
+              }
+            : null,
+          recipe.ShadowTone
+            ? {
+                label: $t('exif.filmSimulation.shadowTone'),
+                value: cleanExifAnnotation(String(recipe.ShadowTone)),
+                icon: 'tabler:moon',
+              }
+            : null,
+          recipe.Saturation
+            ? {
+                label: $t('exif.filmSimulation.saturation'),
+                value: cleanExifAnnotation(String(recipe.Saturation)),
+                icon: 'tabler:palette',
+              }
+            : null,
+          recipe.Sharpness
+            ? {
+                label: $t('exif.filmSimulation.sharpness'),
+                value: localizeExifSafe(
+                  'fujiSharpness',
+                  cleanExifAnnotation(String(recipe.Sharpness)),
+                ),
+                icon: 'tabler:triangle',
+              }
+            : null,
+          typeof recipe.Clarity === 'number'
+            ? {
+                label: $t('exif.filmSimulation.clarity'),
+                value: signedNumber(recipe.Clarity),
+                icon: 'tabler:circle-plus',
+              }
+            : null,
+        ],
+      },
+    ]
+  }
 
   return sections
 })
@@ -448,11 +531,22 @@ const onAlbumClick = (albumId: number) => {
     }"
   >
     <div
-      class="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0"
+      class="flex items-center justify-between gap-2 px-4 py-3 border-b border-white/10 shrink-0"
     >
-      <h3 class="font-black text-white text-ellipsis line-clamp-1">
-        {{ currentPhoto.title }}
-      </h3>
+      <div class="flex items-center gap-2 min-w-0">
+        <h3 class="font-black text-white text-ellipsis line-clamp-1">
+          {{ currentPhoto.title }}
+        </h3>
+        <UBadge
+          v-if="fujiFilmMode"
+          :label="fujiFilmMode"
+          size="sm"
+          color="neutral"
+          variant="soft"
+          icon="mdi:film"
+          class="bg-white/10 text-white shrink-0"
+        />
+      </div>
       <UButton
         v-if="isMobile && onClose"
         icon="tabler:x"
@@ -471,7 +565,25 @@ const onAlbumClick = (albumId: number) => {
       tone="dark"
       :content-class="['p-4 space-y-4', { 'pb-16': !isMobile }]"
     >
-      <!-- 照片描述 -->
+      <!-- ① 信息芯片行 -->
+      <div
+        v-if="infoChips.length > 0"
+        class="flex flex-wrap gap-1.5"
+      >
+        <span
+          v-for="(chip, index) in infoChips"
+          :key="index"
+          class="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] text-white/90 tabular-nums"
+        >
+          <Icon
+            :name="chip.icon"
+            class="size-3.5 opacity-75 shrink-0"
+          />
+          {{ chip.text }}
+        </span>
+      </div>
+
+      <!-- ② 照片描述 -->
       <div
         v-if="currentPhoto.description"
         class="text-sm text-white text-justify"
@@ -479,36 +591,170 @@ const onAlbumClick = (albumId: number) => {
         {{ currentPhoto.description }}
       </div>
 
-      <PhotoMiniMap
-        v-if="gpsCoordinates"
-        :photo="currentPhoto"
-        :latitude="gpsCoordinates?.latitude"
-        :longitude="gpsCoordinates?.longitude"
-        class="cursor-pointer"
-        @click="onMinimapClick(currentPhoto.id)"
-      />
-
-      <PhotoKVRenderer
-        v-if="formatedExifData.basicInfo"
-        :data="formatedExifData.basicInfo"
-      />
-
+      <!-- ③ 标签 + 评分 -->
       <div
-        v-if="currentPhoto.exif?.Rating"
-        class="flex items-center gap-2 justify-between"
+        v-if="
+          (currentPhoto.tags && currentPhoto.tags.length > 0) ||
+          currentPhoto.exif?.Rating
+        "
+        class="flex items-center justify-between gap-2"
       >
-        <h4 class="text-sm font-medium text-white uppercase tracking-wide">
-          {{ $t('exif.sections.rating') }}
-        </h4>
-
-        <Rating
-          :model-value="currentPhoto.exif.Rating"
-          readonly
-          size="sm"
+        <div
+          v-if="currentPhoto.tags && currentPhoto.tags.length > 0"
+          class="flex flex-wrap gap-1"
+        >
+          <UBadge
+            v-for="tag in currentPhoto.tags"
+            :key="tag"
+            :label="tag"
+            variant="soft"
+            size="sm"
+            color="neutral"
+            class="bg-white/10 text-white cursor-pointer select-none hover:bg-white/20 transition-colors"
+            @click="onTagClick(tag)"
+          />
+        </div>
+        <RatingStars
+          v-if="currentPhoto.exif?.Rating"
+          :value="currentPhoto.exif.Rating"
+          :size="13"
+          class="shrink-0"
         />
       </div>
 
-      <!-- 相册 -->
+      <!-- ④ 拍摄参数芯片网格 -->
+      <div v-if="paramCards.length > 0">
+        <h4
+          class="text-sm font-medium text-white uppercase tracking-wide mb-2.5"
+        >
+          {{ $t('exif.sections.shooting.parameters') }}
+        </h4>
+        <div class="grid grid-cols-2 gap-1.5">
+          <div
+            v-for="(card, index) in paramCards"
+            :key="index"
+            class="flex items-center gap-2 rounded-[10px] border px-2.5 py-2 min-w-0"
+            :class="[
+              card.span2 ? 'col-span-2' : '',
+              'border-white/10 bg-white/5',
+              card.actionable
+                ? 'cursor-pointer select-none transition-colors hover:bg-white/10'
+                : '',
+              card.actionable && focusMarkerActive
+                ? 'border-emerald-400/50 bg-emerald-400/10'
+                : '',
+            ]"
+            :role="card.actionable ? 'button' : undefined"
+            @click="card.actionable && emit('toggleFocusMarker')"
+          >
+            <Icon
+              :name="card.icon"
+              class="size-3.5 shrink-0"
+              :class="
+                card.actionable && focusMarkerActive
+                  ? 'text-emerald-300'
+                  : 'opacity-75'
+              "
+            />
+            <div class="min-w-0 flex-1">
+              <div
+                class="text-[13px] font-bold text-white truncate tabular-nums leading-tight"
+              >
+                {{ card.value }}
+              </div>
+              <div class="text-[10px] text-white/45 mt-0.5">
+                {{ card.label }}
+              </div>
+            </div>
+            <Icon
+              v-if="card.actionable"
+              :name="focusMarkerActive ? 'tabler:eye' : 'tabler:eye-off'"
+              class="size-3.5 shrink-0"
+              :class="
+                focusMarkerActive ? 'text-emerald-300' : 'text-white/35'
+              "
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- ⑤ 胶片模拟（仅富士） -->
+      <PhotoKVRenderer
+        v-if="formatedExifData.fujiRecipe"
+        :data="formatedExifData.fujiRecipe"
+      />
+
+      <!-- ⑥ 直方图 + 影调占比 -->
+      <div
+        v-if="currentPhoto.thumbnailUrl"
+        class="space-y-2"
+      >
+        <h4 class="text-sm font-medium text-white uppercase tracking-wide">
+          {{ $t('exif.sections.histogram') }}
+        </h4>
+        <Histogram
+          :thumbnail-url="currentPhoto.thumbnailUrl"
+          show-tone-stats
+          class="h-24"
+        />
+      </div>
+
+      <!-- ⑦ 相机与文件 -->
+      <PhotoKVRenderer
+        v-if="formatedExifData.cameraFiles"
+        :data="formatedExifData.cameraFiles"
+      />
+
+      <!-- ⑧ 拍摄模式 -->
+      <PhotoKVRenderer
+        v-if="formatedExifData.captureMode"
+        :data="formatedExifData.captureMode"
+      />
+
+      <!-- ⑨ 位置 -->
+      <div
+        v-if="gpsCoordinates"
+        class="space-y-2"
+      >
+        <h4 class="text-sm font-medium text-white uppercase tracking-wide">
+          {{ $t('exif.sections.location') }}
+        </h4>
+        <PhotoMiniMap
+          :photo="currentPhoto"
+          :latitude="gpsCoordinates?.latitude"
+          :longitude="gpsCoordinates?.longitude"
+          class="cursor-pointer"
+          @click="onMinimapClick(currentPhoto.id)"
+        />
+        <div class="flex items-start justify-between gap-3 text-xs">
+          <span class="flex items-center gap-1.5 text-white/70 min-w-0">
+            <Icon
+              name="tabler:map-pin"
+              class="size-3.5 shrink-0"
+            />
+            <span class="truncate">
+              {{
+                [currentPhoto.country, currentPhoto.city]
+                  .filter(Boolean)
+                  .join(' · ') || $t('exif.gps.title')
+              }}
+            </span>
+          </span>
+          <span
+            v-if="gpsCoordinates?.latitude && gpsCoordinates?.longitude"
+            class="tabular-nums text-white/50 text-[10px] whitespace-pre-line text-end shrink-0"
+          >
+            {{
+              formatGPSCoordinatesMultiLine(
+                gpsCoordinates.latitude,
+                gpsCoordinates.longitude,
+              )
+            }}
+          </span>
+        </div>
+      </div>
+
+      <!-- ⑩ 相册 -->
       <div
         v-if="albums && albums.length > 0"
         class="mt-4"
@@ -537,60 +783,6 @@ const onAlbumClick = (albumId: number) => {
           </div>
         </div>
       </div>
-
-      <!-- 标签 -->
-      <div
-        v-if="currentPhoto.tags && currentPhoto.tags.length > 0"
-        class="mt-4"
-      >
-        <h4
-          class="text-sm font-medium text-white/90 uppercase tracking-wide mb-2"
-        >
-          {{ $t('exif.sections.tags') }}
-        </h4>
-        <div class="flex flex-wrap gap-1">
-          <UBadge
-            v-for="tag in currentPhoto.tags"
-            :key="tag"
-            :label="tag"
-            variant="soft"
-            size="sm"
-            color="neutral"
-            class="bg-white/10 text-white cursor-pointer select-none hover:bg-white/20 transition-colors"
-            @click="onTagClick(tag)"
-          />
-        </div>
-      </div>
-      <PhotoKVRenderer
-        v-if="formatedExifData.captureParams"
-        :data="formatedExifData.captureParams"
-      />
-
-      <div class="space-y-2">
-        <h4 class="text-sm font-medium text-white uppercase tracking-wide">
-          {{ $t('exif.sections.histogram') }}
-        </h4>
-
-        <Histogram
-          v-if="currentPhoto.thumbnailUrl"
-          :thumbnail-url="currentPhoto.thumbnailUrl"
-        />
-      </div>
-
-      <PhotoKVRenderer
-        v-if="formatedExifData.deviceInfo"
-        :data="formatedExifData.deviceInfo"
-      />
-
-      <PhotoKVRenderer
-        v-if="formatedExifData.captureMode"
-        :data="formatedExifData.captureMode"
-      />
-
-      <PhotoKVRenderer
-        v-if="formatedExifData.technicalParams"
-        :data="formatedExifData.technicalParams"
-      />
     </ScrollArea>
   </motion.div>
 </template>

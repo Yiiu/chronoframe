@@ -51,7 +51,8 @@
         "tooltip": "Logout"
       },
       "globe": {
-        "tooltip": "Globe"
+        "tooltip": "Globe",
+        "label": "Map"
       },
       "home": {
         "tooltip": "Back to Home"
@@ -226,7 +227,10 @@
       "shooting": {
         "parameters": "Shooting Parameters",
         "mode": "Shooting Mode"
-      }
+      },
+      "filmSimulation": "Film Simulation",
+      "cameraFiles": "Camera & File",
+      "location": "Location"
     },
     "aperture": "Aperture Value",
     "dateTaken": {
@@ -376,9 +380,59 @@
         "iccProfile": "ICC Profile",
         "uncalibrated": "Uncalibrated",
         "rgb": "RGB"
+      },
+      "fujiStrength": {
+        "off": "Off",
+        "weak": "Weak",
+        "strong": "Strong"
+      },
+      "fujiGrainSize": {
+        "off": "Off",
+        "small": "Small",
+        "large": "Large"
+      },
+      "fujiSharpness": {
+        "hard": "Hard",
+        "normal": "Normal",
+        "soft": "Soft"
+      },
+      "afAreaMode": {
+        "singlePoint": "Single point",
+        "zone": "Zone",
+        "wide": "Wide area",
+        "multi": "Multi"
       }
     },
-    "iso": "ISO"
+    "iso": "ISO",
+    "filmSimulation": {
+      "mode": "Film Mode",
+      "dynamicRange": "Dynamic Range",
+      "grainStrength": "Grain Effect",
+      "grainSize": "Grain Size",
+      "colorChrome": "Color Chrome Effect",
+      "colorChromeBlue": "Color Chrome FX Blue",
+      "highlightTone": "Highlight Tone",
+      "shadowTone": "Shadow Tone",
+      "saturation": "Saturation",
+      "sharpness": "Sharpness",
+      "noiseReduction": "Noise Reduction",
+      "clarity": "Clarity",
+      "colorTemperature": "Color Temperature"
+    },
+    "histogram": {
+      "shadows": "Shadows",
+      "midtones": "Midtones",
+      "highlights": "Highlights"
+    },
+    "param": {
+      "focal": "35mm equiv.",
+      "aperture": "Aperture",
+      "shutter": "Shutter",
+      "iso": "ISO"
+    },
+    "focus": {
+      "title": "Focus"
+    }
   },
   "title": {
     "gallery": "Gallery",
@@ -619,7 +673,8 @@
         "eraseLocationInfo": "Erase location info",
         "delete": "Delete",
         "editMetadata": "Edit Metadata",
-        "previewPhoto": "Photo Preview"
+        "previewPhoto": "Photo Preview",
+        "reindexExif": "Reindex EXIF"
       },
       "selection": {
         "selected": "{count} / {total} rows selected",
@@ -737,7 +792,9 @@
         "batchEraseLocationFailed": "Failed to queue batch erase-location tasks",
         "taskSubmitFailed": "Failed to submit task",
         "taskStatusCheckFailed": "Failed to check task status",
-        "uploadFailed": "Upload failed"
+        "uploadFailed": "Upload failed",
+        "reindexExifSuccess": "EXIF reindexed successfully",
+        "reindexExifFailed": "Failed to reindex EXIF"
       },
       "errors": {
         "noSelection": "Please select photos to upload",

@@ -12,6 +12,35 @@ export interface HistogramDataCompressed {
   gray: number[]
 }
 
+/**
+ * 影调占比：按灰度直方图 256 级三等分（0-84 暗部 / 85-170 中间调 / 171-255 高光），
+ * 输出各自像素占比（0-100，四舍五入），基于 128 bin 压缩数据计算。
+ */
+export const calculateToneDistribution = (
+  gray: number[],
+): { shadows: number; midtones: number; highlights: number } => {
+  let shadows = 0
+  let midtones = 0
+  let highlights = 0
+  let total = 0
+  for (let i = 0; i < gray.length; i++) {
+    const count = gray[i] ?? 0
+    total += count
+    // 压缩 bin i 覆盖原始 256 级的 [2i, 2i+1]，以 2i+1（上限）判定区间
+    const level = i * 2 + 1
+    if (level <= 84) shadows += count
+    else if (level <= 170) midtones += count
+    else highlights += count
+  }
+  if (total === 0) return { shadows: 0, midtones: 0, highlights: 0 }
+  const pct = (n: number) => Math.round((n / total) * 100)
+  return {
+    shadows: pct(shadows),
+    midtones: pct(midtones),
+    highlights: pct(highlights),
+  }
+}
+
 const compressHistogramBin = (data: number[]): number[] => {
   const compressed: number[] = zeroArray(128)
   for (let i = 0; i < data.length; i++) {

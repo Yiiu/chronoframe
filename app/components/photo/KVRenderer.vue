@@ -5,6 +5,8 @@ export interface KVData {
     label: string
     value?: string | number | null
     icon?: string | 'placeholder'
+    /** 品牌字标 logo（CSS mask 渲染，继承文字颜色），优先于 icon */
+    brandLogo?: { name: string; ratio: number } | null
   } | null)[]
 }
 
@@ -48,7 +50,21 @@ defineProps<{
             <div
               class="text-white text-wrap tracking-tight wrap-anywhere text-end whitespace-pre-line"
             >
-              {{ item!.value }}
+              <span
+                v-if="item!.brandLogo"
+                class="inline-flex items-center justify-end gap-2 max-w-full"
+              >
+                <span
+                  class="brand-logo-mask shrink-0"
+                  :style="{
+                    aspectRatio: `${item!.brandLogo.ratio}`,
+                    maskImage: `url(/brand-logos/${item!.brandLogo.name.toLowerCase()}.svg)`,
+                    WebkitMaskImage: `url(/brand-logos/${item!.brandLogo.name.toLowerCase()}.svg)`,
+                  }"
+                />
+                <span class="truncate">{{ item!.value }}</span>
+              </span>
+              <template v-else>{{ item!.value }}</template>
             </div>
           </div>
         </div>
@@ -57,4 +73,16 @@ defineProps<{
   </template>
 </template>
 
-<style scoped></style>
+<style scoped>
+.brand-logo-mask {
+  display: inline-block;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.88);
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+}
+</style>

@@ -57,6 +57,7 @@ const totalSelectedFilters = computed(() => {
 
 const reverseGeocodeLoading = ref<Record<string, boolean>>({})
 const eraseLocationLoading = ref<Record<string, boolean>>({})
+const reindexExifLoading = ref<Record<string, boolean>>({})
 
 const setReverseGeocodeLoading = (photoId: string, loading: boolean) => {
   if (loading) {
@@ -79,6 +80,18 @@ const setEraseLocationLoading = (photoId: string, loading: boolean) => {
   } else {
     const { [photoId]: _removed, ...rest } = eraseLocationLoading.value
     eraseLocationLoading.value = rest
+  }
+}
+
+const setReindexExifLoading = (photoId: string, loading: boolean) => {
+  if (loading) {
+    reindexExifLoading.value = {
+      ...reindexExifLoading.value,
+      [photoId]: true,
+    }
+  } else {
+    const { [photoId]: _removed, ...rest } = reindexExifLoading.value
+    reindexExifLoading.value = rest
   }
 }
 
@@ -967,6 +980,40 @@ const handleReverseGeocodeRequest = async (photo: Photo) => {
   }
 }
 
+// 重跑单张照片的 EXIF 提取（补富士胶片模拟等新增字段用）
+const handleReindexExif = async (photo: Photo) => {
+  if (!photo?.id) {
+    return
+  }
+
+  setReindexExifLoading(photo.id, true)
+
+  try {
+    await $fetch('/api/photos/exif/reindex', {
+      method: 'POST',
+      body: { action: 'single-reindex', photoId: photo.id },
+    })
+
+    toast.add({
+      title: $t('dashboard.photos.messages.reindexExifSuccess'),
+      color: 'success',
+    })
+    await refresh()
+  } catch (error: any) {
+    console.error('Failed to reindex EXIF:', error)
+    toast.add({
+      title: $t('dashboard.photos.messages.reindexExifFailed'),
+      description:
+        error?.data?.statusMessage ||
+        error?.message ||
+        $t('dashboard.photos.messages.error'),
+      color: 'error',
+    })
+  } finally {
+    setReindexExifLoading(photo.id, false)
+  }
+}
+
 const handleEraseLocationRequest = async (photo: Photo) => {
   if (!photo?.id) {
     return
@@ -1060,6 +1107,7 @@ const handleReprocessSingle = async (photo: Photo) => {
 const getRowActions = (photo: Photo) => {
   const isReverseLoading = !!reverseGeocodeLoading.value[photo.id]
   const isEraseLocationLoading = !!eraseLocationLoading.value[photo.id]
+  const isReindexExifLoading = !!reindexExifLoading.value[photo.id]
 
   return [
     [
@@ -1075,6 +1123,14 @@ const getRowActions = (photo: Photo) => {
         icon: 'tabler:refresh',
         onSelect() {
           handleReprocessSingle(photo)
+        },
+      },
+      {
+        label: $t('dashboard.photos.actions.reindexExif'),
+        icon: isReindexExifLoading ? 'tabler:loader-2' : 'tabler:barcode',
+        disabled: isReindexExifLoading,
+        onSelect() {
+          handleReindexExif(photo)
         },
       },
       {

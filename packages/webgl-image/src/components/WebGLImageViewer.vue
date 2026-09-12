@@ -112,6 +112,13 @@ const initEngine = async (): Promise<void> => {
           updateDebugInfo()
         }
       },
+      onTransformChange: () => {
+        // 在任何变换变化时更新调试信息
+        if (config.value.debug) {
+          updateDebugInfo()
+        }
+        updateTransformState()
+      },
       onImageCopied: () => {
         emit('imageCopied')
       },
@@ -122,17 +129,12 @@ const initEngine = async (): Promise<void> => {
       ) => {
         emit('loadingStateChange', isLoading, state, quality)
       },
-      onTransformChange: (_transform) => {
-        // 在任何变换变化时更新调试信息
-        if (config.value.debug) {
-          updateDebugInfo()
-        }
-      },
     })
 
     // 加载图片
     if (props.src) {
       await engine.value.loadImage(props.src)
+      updateTransformState()
 
       // 初始化调试信息
       if (config.value.debug) {
@@ -149,6 +151,29 @@ const initEngine = async (): Promise<void> => {
 const updateDebugInfo = (): void => {
   if (engine.value) {
     debugInfo.value = engine.value.getDebugInfo()
+  }
+}
+
+// 实时视图变换（供 overlay slot 内的 DOM 元素与 WebGL 画面同步定位）
+const transformState = ref<{
+  scale: number
+  translateX: number
+  translateY: number
+  devicePixelRatio: number
+  imageWidth: number
+  imageHeight: number
+} | null>(null)
+
+const updateTransformState = (): void => {
+  const info = engine.value?.getDebugInfo()
+  if (!info) return
+  transformState.value = {
+    scale: info.scale,
+    translateX: info.translateX,
+    translateY: info.translateY,
+    devicePixelRatio: info.devicePixelRatio,
+    imageWidth: info.imageWidth,
+    imageHeight: info.imageHeight,
   }
 }
 
@@ -199,17 +224,18 @@ onUnmounted(() => {
 })
 
 // 监听 src 变化
-watch(
-  () => props.src,
-  async (newSrc) => {
-    if (newSrc && engine.value) {
-      try {
-        await engine.value.loadImage(newSrc)
+  watch(
+    () => props.src,
+    async (newSrc) => {
+      if (newSrc && engine.value) {
+        try {
+          await engine.value.loadImage(newSrc)
+          updateTransformState()
 
-        if (config.value.debug) {
-          updateDebugInfo()
-        }
-      } catch (err) {
+          if (config.value.debug) {
+            updateDebugInfo()
+          }
+        } catch (err) {
         console.error('Failed to load new image:', err)
         error.value =
           err instanceof Error ? err.message : 'Failed to load image'
@@ -248,6 +274,12 @@ defineExpose<WebGLImageViewerRef>({
       ref="canvasRef"
       class="webgl-canvas"
       @error="handleError"
+    />
+
+    <!-- DOM 覆盖层：transform 提供实时视图变换，用于同步定位标注元素 -->
+    <slot
+      name="overlay"
+      :transform="transformState"
     />
 
     <DebugInfoComponent

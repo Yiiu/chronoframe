@@ -10,6 +10,7 @@ import LoadingIndicator from './LoadingIndicator.vue'
 import ProgressiveImage from './ProgressiveImage.vue'
 import GalleryThumbnail from './GalleryThumbnail.vue'
 import InfoPanel from './InfoPanel.vue'
+import FocusPointMarker from './FocusPointMarker.vue'
 import ReactionPicker from './ReactionPicker.vue'
 import ReactionConfetti from './ReactionConfetti.vue'
 import { REACTION_ICON_MAP } from './reaction-definitions'
@@ -115,6 +116,15 @@ const infoPanelExif = computed<NeededExif | null>(() => {
   if (!slim && !full) return null
   return { ...(slim as object), ...(full as object) } as NeededExif
 })
+
+// 对焦点标记显隐：默认关，点击信息面板"对焦"卡片开关，切图重置
+const focusMarkerVisible = ref(false)
+watch(
+  () => currentPhoto.value?.id,
+  () => {
+    focusMarkerVisible.value = false
+  },
+)
 
 // LivePhoto processing state
 const livePhotoProcessingState = computed(() => {
@@ -794,7 +804,24 @@ const swiperModules = [Navigation, Keyboard, Virtual]
                       :live-photo-video-url="
                         photo.livePhotoVideoUrl || undefined
                       "
-                    />
+                    >
+                      <!-- 对焦点标记：默认隐藏，点击信息面板"对焦"卡片开关（仅富士等有机身对焦坐标的照片可用） -->
+                      <template
+                        #overlay="{ transform }"
+                      >
+                        <FocusPointMarker
+                          v-if="
+                            focusMarkerVisible && index === currentIndex
+                          "
+                          class="absolute inset-0 z-[5]"
+                          :transform="transform"
+                          :focus-pixel="infoPanelExif?.FocusPixel ?? null"
+                          :orientation="infoPanelExif?.Orientation"
+                          :sensor-width="infoPanelExif?.ImageWidth"
+                          :sensor-height="infoPanelExif?.ImageHeight"
+                        />
+                      </template>
+                    </ProgressiveImage>
 
                     <!-- LivePhoto Video -->
                     <motion.video
@@ -1018,13 +1045,17 @@ const swiperModules = [Navigation, Keyboard, Virtual]
               v-if="showExifPanel && currentPhoto"
               :current-photo="currentPhoto"
               :exif-data="infoPanelExif"
+              :focus-marker-active="focusMarkerVisible"
               :on-close="() => (showExifPanel = false)"
+              @toggle-focus-marker="focusMarkerVisible = !focusMarkerVisible"
             />
           </AnimatePresence>
           <InfoPanel
             v-else-if="currentPhoto"
             :current-photo="currentPhoto"
             :exif-data="infoPanelExif"
+            :focus-marker-active="focusMarkerVisible"
+            @toggle-focus-marker="focusMarkerVisible = !focusMarkerVisible"
           />
         </div>
       </motion.div>

@@ -1,5 +1,31 @@
 import type { Tags } from 'exiftool-vendored'
 
+/**
+ * Fuji film simulation settings read from the makernote section.
+ *
+ * Only present when the photo carries a Fuji `FilmMode` tag, so consumers can
+ * use `exif.fujiRecipe` itself as the "is a Fuji body" signal.
+ */
+export interface FujiRecipe {
+  FilmMode?: Tags['FilmMode']
+  GrainEffectRoughness?: Tags['GrainEffectRoughness']
+  GrainEffectSize?: Tags['GrainEffectSize']
+  ColorChromeEffect?: Tags['ColorChromeEffect']
+  ColorChromeFXBlue?: Tags['ColorChromeFXBlue']
+  DynamicRange?: Tags['DynamicRange']
+  DynamicRangeSetting?: Tags['DynamicRangeSetting']
+  DevelopmentDynamicRange?: Tags['DevelopmentDynamicRange']
+  WhiteBalance?: Tags['WhiteBalance']
+  WhiteBalanceFineTune?: Tags['WhiteBalanceFineTune']
+  ColorTemperature?: Tags['ColorTemperature']
+  HighlightTone?: Tags['HighlightTone']
+  ShadowTone?: Tags['ShadowTone']
+  Saturation?: Tags['Saturation']
+  Sharpness?: Tags['Sharpness']
+  NoiseReduction?: Tags['NoiseReduction']
+  Clarity?: Tags['Clarity']
+}
+
 export interface NeededExif {
   Title?: string
   XPTitle?: string
@@ -82,6 +108,15 @@ export interface NeededExif {
 
   // HDR Type
   MPImageType?: Tags['MPImageType']
+
+  // 对焦信息（目前仅富士 makernote 提供；FocusPixel 为对焦点在原图中的像素坐标）
+  FocusMode2?: Tags['FocusMode2']
+  AFMode?: Tags['AFMode']
+  AFAreaMode?: Tags['AFAreaMode']
+  FocusPixel?: Tags['FocusPixel']
+
+  // Fuji film simulation recipe (present only on Fuji bodies, see FujiRecipe)
+  fujiRecipe?: FujiRecipe
 
   Rating?: number
 
