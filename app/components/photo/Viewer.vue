@@ -785,11 +785,6 @@ const swiperModules = [Navigation, Keyboard, Virtual]
                           ? (currentPhoto?.height ?? undefined)
                           : undefined
                       "
-                      :enable-pan="
-                        index === currentIndex
-                          ? !isMobile || isImageZoomed
-                          : true
-                      "
                       :enable-zoom="true"
                       :on-zoom-change="
                         index === currentIndex ? handleZoomChange : undefined

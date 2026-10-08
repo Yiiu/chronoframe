@@ -11,7 +11,6 @@ interface Props {
   width?: number
   height?: number
   className?: string
-  enablePan?: boolean
   enableZoom?: boolean
   isCurrentImage?: boolean
   loadingIndicatorRef: LoadingIndicatorRef | null
@@ -31,7 +30,6 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  enablePan: true,
   enableZoom: true,
   isCurrentImage: true,
   thumbnailSrc: '',
@@ -50,6 +48,12 @@ const props = withDefaults(defineProps<Props>(), {
   isHDR: false,
   imageHidden: false,
 })
+
+// WebGL 查看器的交互配置是静态的，提成常量保持引用稳定，避免每次重渲染触发查看器的 deep watch
+const VIEWER_WHEEL = { step: 0.2, wheelDisabled: false, touchPadDisabled: false }
+const VIEWER_PINCH = { step: 0.2 }
+const VIEWER_DOUBLE_CLICK = { mode: 'toggle', step: 2.4, animationTime: 400 } as const
+const VIEWER_PANNING = { velocityDisabled: false }
 
 const containerRef = ref<HTMLDivElement>()
 
@@ -216,10 +220,10 @@ onUnmounted(() => {
       :smooth="true"
       :min-scale="1"
       :max-scale="12"
-      :wheel="{ step: 0.2, wheelDisabled: false, touchPadDisabled: false }"
-      :pinch="{ step: 0.2 }"
-      :double-click="{ mode: 'toggle', step: 2.4, animationTime: 400 }"
-      :panning="{ velocityDisabled: false }"
+      :wheel="VIEWER_WHEEL"
+      :pinch="VIEWER_PINCH"
+      :double-click="VIEWER_DOUBLE_CLICK"
+      :panning="VIEWER_PANNING"
       :debug="showDebugInfo"
       @zoom-change="handleZoomChange"
       @loading-state-change="handleWebGLStateChange"
