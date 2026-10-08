@@ -55,7 +55,6 @@ const tracer = () => {
     rect0 = await target.boundingBox()
   }
 
-  const open = async () => (MOBILE ? target.tap() : target.click())
   const closeBy = {
     escape: () => page.keyboard.press('Escape'),
     back: () => page.goBack(),

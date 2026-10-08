@@ -1175,9 +1175,12 @@ export class WebGLImageViewerEngine {
         gl.drawArrays(gl.TRIANGLES, 0, 6)
       }
 
-      const error = gl.getError()
-      if (error !== gl.NO_ERROR) {
-        console.error('WebGL rendering error:', error)
+      // getError() forces a CPU<->GPU sync on every frame; only pay for it in debug mode.
+      if (this.config.debug) {
+        const error = gl.getError()
+        if (error !== gl.NO_ERROR) {
+          console.error('WebGL rendering error:', error)
+        }
       }
     } catch (error) {
       console.error('Error during rendering:', error)

@@ -20,7 +20,7 @@ Remove the CPU↔GPU synchronisation that `gl.getError()` forces on every render
 
 ## Acceptance Criteria
 
-- [ ] Profile of open + zoom/pan (prod build) shows no `getError` samples under `render` with debug off.
-- [ ] With `debug` on, render errors are still logged.
-- [ ] Viewer still displays, zooms and pans correctly (visual check + hero.cjs / mobile.cjs pass).
-- [ ] `pnpm build:deps` and `pnpm lint` pass.
+- [x] Profile of open + zoom/pan (prod build) shows no `getError` samples under `render` with debug off.
+- [x] With `debug` on, render errors are still logged.
+- [x] Viewer still displays, zooms and pans correctly (visual check + hero.cjs / mobile.cjs pass).
+- [x] `pnpm build:deps` and `pnpm lint` pass.

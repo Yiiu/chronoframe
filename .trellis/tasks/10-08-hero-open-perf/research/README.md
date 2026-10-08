@@ -13,5 +13,6 @@ Chromium path is hard-coded to the cached `chromium-1223` (see `.claude/skills/v
 | `perf.cjs <base> [cpu] [desktop\|mobile] [profile]` | rAF frame deltas + long tasks for open/close, cold and warm (5 runs, median); `profile` writes `open.cpuprofile` / `open-warm.cpuprofile` |
 | `analyze.py <cpuprofile>` | self / inclusive time by function and file |
 | `ctrace.cjs <base> [runs] [cpu] [mobile]` | compositor frame states (`PipelineReporter`) in the 450 ms flight window of a warm open. Flight stall frames = DROPPED + PRESENTED_PARTIAL with `+mainAnim` (while the flight is main-driven) |
+| `pan.cjs <base>` | zoom + 1.5 s drag CPU profile (`pan.cpuprofile`) |
 | `hero.cjs <base> [mobile]` | hero open/quick-close correctness: 21 desktop / 9 mobile scenarios (thumb restored, overlay hidden, no holes/jumps) |
 | `mobile.cjs <base>` | mobile swipe-at-1x navigates, drag-when-zoomed pans |

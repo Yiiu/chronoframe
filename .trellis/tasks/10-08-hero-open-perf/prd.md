@@ -90,6 +90,13 @@ Prod warm-open profile (minified; attributed by inspecting bundles and call chai
 - **New:** InfoPanel mini map (maplibre, `ovk_0U_A.js`): WebGL `getContext` at 231–241 ms (10 ms) + shader programs at 348–369 ms (~17 ms) — inside the flight, not covered by any child yet.
 - WebGL image viewer `getContext` (76 ms) at 976–1041 ms — after the flight; not a flight cost.
 
+### Step 1 — per-frame getError gated on debug
+
+- Open (desktop, warm): longest task 121 ms, long tasks 278 ms, dropped 28 — unchanged vs step 0, as expected (cost was after the flight).
+- Zoom + 1.5 s drag profile (`research/pan.cjs`): no `getError` samples; `render` 3.4 ms total self; main thread mostly idle. No prod before-number for pan (would need reverting + rebuild); dev evidence was 114 ms of `getError` in one open.
+- hero.cjs desktop 21/21; mobile.cjs swipe navigates, zoomed drag pans.
+- Follow-up noted by review (out of scope): `WebGLImageViewer.vue` `onTransformChange` → `updateTransformState` calls `engine.getDebugInfo()` every transform change even with debug off (builds a debug object, `getParameter(MAX_TEXTURE_SIZE)` in `core/utils.ts:137`).
+
 ## Out of scope
 
 - Native rendering cost of mounting the viewer (~146 ms dev) and splitting viewer mount across frames.
