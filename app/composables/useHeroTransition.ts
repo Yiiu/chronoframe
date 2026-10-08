@@ -163,7 +163,12 @@ export function useHeroTransition(options: Options) {
   }
 
   const startEntry = () => {
-    if (options.disabled) return // reduced-motion → viewer fade owns the transition
+    if (options.disabled) {
+      // reduced-motion → viewer fade owns the transition. Still drop the
+      // click-time pendingHero, or consumers treat the open as a flight forever.
+      viewer.clearPendingHero()
+      return
+    }
     const pending = pendingHero.value
     if (!pending) return // deep-link / no source → no hero, plain fade owns it
     const el = overlayRef.value
@@ -228,7 +233,10 @@ export function useHeroTransition(options: Options) {
   }
 
   const onViewerClose = () => {
-    if (options.disabled) return // reduced-motion → viewer fade owns the transition
+    if (options.disabled) {
+      viewer.clearPendingHero() // closed before startEntry ran
+      return // reduced-motion → viewer fade owns the transition
+    }
     entryGen++ // abandon an entry still waiting for the overlay to load
     // Closed before any entry ran (opened and dismissed within a tick): nothing
     // has flown or been hidden, so just reset — a reverse flight here would hide
