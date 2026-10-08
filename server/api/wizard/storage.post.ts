@@ -1,8 +1,11 @@
 import { z } from 'zod'
 import { settingsManager } from '~~/server/services/settings/settingsManager'
 import { storageConfigSchema } from '~~/shared/types/storage'
+import { requireWizardAccess } from '~~/server/utils/wizard-guard'
 
 export default eventHandler(async (event) => {
+  await requireWizardAccess(event)
+
   const body = await readValidatedBody(
     event,
     z.object({

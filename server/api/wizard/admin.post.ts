@@ -1,6 +1,9 @@
 import { z } from 'zod'
+import { requireWizardAccess } from '~~/server/utils/wizard-guard'
 
 export default eventHandler(async (event) => {
+  await requireWizardAccess(event)
+
   const db = useDB()
   const { email, password, username } = await readValidatedBody(
     event,
