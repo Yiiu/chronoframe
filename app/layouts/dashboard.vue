@@ -118,12 +118,17 @@ const handleLogin = () => {
     />
     <p class="text-gray-500 text-center">
       {{
-        !user?.isAdmin
+        !loggedIn
           ? $t('dashboard.access.pleaseLogin')
           : $t('dashboard.access.noAccess')
       }}
     </p>
-    <UButton @click="handleLogin">{{ $t('auth.form.signin.title') }}</UButton>
+    <UButton
+      v-if="!loggedIn"
+      @click="handleLogin"
+    >
+      {{ $t('auth.form.signin.title') }}
+    </UButton>
   </div>
   <UDashboardGroup v-else>
     <UDashboardSidebar

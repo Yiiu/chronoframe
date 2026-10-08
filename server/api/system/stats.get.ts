@@ -118,7 +118,13 @@ function mapSystemInfo(distribution: string): string {
 }
 
 export default eventHandler(async (event) => {
-  await requireUserSession(event)
+  const session = await requireUserSession(event)
+  if (!session.user.isAdmin) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: 'Admin privileges required',
+    })
+  }
 
   // 获取基础统计
   const totalPhotos = await useDB()

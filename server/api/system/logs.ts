@@ -115,7 +115,13 @@ const streamNewLines = async (
 }
 
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
+  const session = await requireUserSession(event)
+  if (!session.user.isAdmin) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: 'Admin privileges required',
+    })
+  }
 
   const eventStream = createEventStream(event)
 
