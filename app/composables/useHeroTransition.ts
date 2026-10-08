@@ -25,6 +25,9 @@ interface Options {
 }
 
 // motion-v's animate() returns playback controls that are also a thenable.
+// Caution: stop() on a JS-driven animation first ticks it to "now"; if the end
+// time has already passed it completes and resolves `then` anyway. Callbacks must
+// therefore check they still own the handle (see flyTo / settle).
 type AnimHandle = { stop: () => void; then: (cb: () => void) => void }
 
 function rectFrom(el: Element): Rect {
@@ -121,7 +124,7 @@ export function useHeroTransition(options: Options) {
     const el = overlayRef.value
     if (!el) return onDone()
     flightHandle?.stop()
-    flightHandle = animate(
+    const handle = animate(
       el,
       {
         left: [`${from.left}px`, `${target.left}px`],
@@ -135,7 +138,11 @@ export function useHeroTransition(options: Options) {
       },
       { duration: FLIGHT.duration, ease: FLIGHT.easing },
     ) as AnimHandle
-    flightHandle.then(() => {
+    flightHandle = handle
+    handle.then(() => {
+      // A flight stopped right at its end time still resolves; ignore it once
+      // it has been stopped or replaced, or a closed entry would run settle().
+      if (flightHandle !== handle) return
       flightHandle = null
       onDone()
     })
@@ -151,12 +158,14 @@ export function useHeroTransition(options: Options) {
     const el = overlayRef.value
     if (!el) return
     fadeHandle?.stop()
-    fadeHandle = animate(
+    const handle = animate(
       el,
       { opacity: [1, 0] },
       { duration: CROSSFADE_MS / 1000 },
     ) as AnimHandle
-    fadeHandle.then(() => {
+    fadeHandle = handle
+    handle.then(() => {
+      if (fadeHandle !== handle) return // stopped/replaced (e.g. closed mid-crossfade)
       fadeHandle = null
       hideOverlay()
     })
@@ -292,12 +301,14 @@ export function useHeroTransition(options: Options) {
           // Re-opened while landing → the new entry owns the overlay now.
           if (state.value !== 'idle') return
           fadeHandle?.stop()
-          fadeHandle = animate(
+          const handle = animate(
             el,
             { opacity: [1, 0] },
             { duration: CROSSFADE_MS / 1000 },
           ) as AnimHandle
-          fadeHandle.then(() => {
+          fadeHandle = handle
+          handle.then(() => {
+            if (fadeHandle !== handle) return // re-opened mid-crossfade
             fadeHandle = null
             hideOverlay()
           })
