@@ -91,6 +91,9 @@ const config = computed<EngineConfig>(() => ({
 }))
 
 // Methods
+// 实例级配置快照：deep watch 对引用变化敏感，用内容比对跳过无实质变化的重建
+let lastConfigJson = ''
+
 const initEngine = async (): Promise<void> => {
   if (!canvasRef.value) {
     throw new Error('Canvas not available')
@@ -101,6 +104,8 @@ const initEngine = async (): Promise<void> => {
   }
 
   try {
+    // 在 await 之前记录引擎实际使用的配置，避免首次加载期间的引用变化触发重建
+    lastConfigJson = JSON.stringify(config.value)
     engine.value = new WebGLImageViewerEngine(canvasRef.value, config.value)
 
     engine.value.setCallbacks({
@@ -246,7 +251,13 @@ onUnmounted(() => {
 
 watch(
   config,
-  (_newConfig) => {
+  (newConfig) => {
+    // 调用方若以内联字面量传入 wheel / panning 等对象，每次重渲染都会产生新引用并触发 deep watch；
+    // 内容没变时跳过，避免引擎反复销毁重建、图片重复加载
+    const json = JSON.stringify(newConfig)
+    if (json === lastConfigJson) return
+    lastConfigJson = json
+
     if (engine.value) {
       engine.value.destroy()
       initEngine().catch(console.error)
