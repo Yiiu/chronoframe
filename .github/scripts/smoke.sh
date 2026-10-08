@@ -31,4 +31,19 @@ check /api/photos 200
 check / '200|302'
 check /onboarding 200
 
+# Fresh DB → the setup wizard must be reachable: an empty body hits the
+# handler's validation (400), not the post-setup guard (403).
+check_post() {
+  local path="$1" expected="$2" got
+  got="$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -X POST "$BASE$path" -d '{}' || true)"
+  if [[ "$got" =~ ^($expected)$ ]]; then
+    echo "ok   POST $path -> $got"
+  else
+    echo "FAIL POST $path -> $got (expected $expected)"
+    fail=1
+  fi
+}
+
+check_post /api/wizard/site 400
+
 exit "$fail"
