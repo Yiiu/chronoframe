@@ -17,6 +17,7 @@ export type {
   DebugInfo,
   TouchState,
   EngineConfig,
+  ViewTransformState,
 } from './types'
 
 export { LoadingState } from './types'

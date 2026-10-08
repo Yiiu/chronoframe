@@ -108,6 +108,16 @@ export interface Bounds {
   bottom: number
 }
 
+/** Live view transform, cheap to read every frame (overlay positioning). */
+export interface ViewTransformState {
+  scale: number
+  translateX: number
+  translateY: number
+  devicePixelRatio: number
+  imageWidth: number
+  imageHeight: number
+}
+
 export interface DebugInfo {
   scale: number
   relativeScale: number

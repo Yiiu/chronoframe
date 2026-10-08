@@ -5,6 +5,7 @@ import type {
   DebugInfo,
   Point,
   TouchState,
+  ViewTransformState,
 } from '../types'
 import { LoadingState } from '../types'
 import {
@@ -1717,6 +1718,20 @@ export class WebGLImageViewerEngine {
     // 通知变换变化（用于调试信息更新等）
     if (this.onTransformChange) {
       this.onTransformChange({ ...this.transform })
+    }
+  }
+
+  // Cheap per-frame view transform for overlay positioning. getDebugInfo() also
+  // walks visible tiles and queries GL parameters, so keep it for debug only.
+  public getTransformState(): ViewTransformState | null {
+    if (!this.image) return null
+    return {
+      scale: this.transform.scale,
+      translateX: this.transform.translateX,
+      translateY: this.transform.translateY,
+      devicePixelRatio: window.devicePixelRatio || 1,
+      imageWidth: this.image.width,
+      imageHeight: this.image.height,
     }
   }
 

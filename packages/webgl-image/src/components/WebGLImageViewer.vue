@@ -11,6 +11,7 @@ import type {
   DebugInfo,
   EngineConfig,
   LoadingState,
+  ViewTransformState,
   WebGLImageViewerRef,
 } from '@/types'
 
@@ -160,26 +161,11 @@ const updateDebugInfo = (): void => {
 }
 
 // 实时视图变换（供 overlay slot 内的 DOM 元素与 WebGL 画面同步定位）
-const transformState = ref<{
-  scale: number
-  translateX: number
-  translateY: number
-  devicePixelRatio: number
-  imageWidth: number
-  imageHeight: number
-} | null>(null)
+const transformState = ref<ViewTransformState | null>(null)
 
 const updateTransformState = (): void => {
-  const info = engine.value?.getDebugInfo()
-  if (!info) return
-  transformState.value = {
-    scale: info.scale,
-    translateX: info.translateX,
-    translateY: info.translateY,
-    devicePixelRatio: info.devicePixelRatio,
-    imageWidth: info.imageWidth,
-    imageHeight: info.imageHeight,
-  }
+  const state = engine.value?.getTransformState()
+  if (state) transformState.value = state
 }
 
 const handleError = (event: Event): void => {
