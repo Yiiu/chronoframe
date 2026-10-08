@@ -12,6 +12,7 @@ import type {
   StorageProvider,
   UploadOptions,
 } from '../interfaces'
+import { isSupportedImageKey } from '~~/server/utils/image-extensions'
 
 const createClient = (config: S3StorageConfig): S3Client => {
   if (config.provider !== 's3') {
@@ -242,7 +243,8 @@ export class S3StorageProvider implements StorageProvider {
     })
 
     const resp = await this.client.send(cmd)
-    // TODO: filter supported image format
-    return resp.Contents?.map(convertToStorageObject) || []
+    return (resp.Contents?.map(convertToStorageObject) || []).filter((o) =>
+      isSupportedImageKey(o.key),
+    )
   }
 }

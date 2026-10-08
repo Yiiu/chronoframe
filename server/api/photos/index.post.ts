@@ -2,23 +2,10 @@ import path from 'path'
 import { useStorageProvider } from '~~/server/utils/useStorageProvider'
 import { eq } from 'drizzle-orm'
 import { generateSafePhotoId } from '~~/server/utils/file-utils'
+import { isSupportedImageKey } from '~~/server/utils/image-extensions'
 import { settingsManager } from '~~/server/services/settings/settingsManager'
 
 const VIDEO_EXTENSIONS = new Set(['.mov', '.mp4'])
-
-const IMAGE_EXTENSIONS = new Set([
-  '.avif',
-  '.bmp',
-  '.gif',
-  '.heic',
-  '.heif',
-  '.jpeg',
-  '.jpg',
-  '.png',
-  '.tif',
-  '.tiff',
-  '.webp',
-])
 
 const isVideoFile = (
   fileName: string,
@@ -30,15 +17,6 @@ const isVideoFile = (
 
   const ext = path.extname(fileName).toLowerCase()
   return ext !== '' && VIDEO_EXTENSIONS.has(ext)
-}
-
-const isLikelyImageKey = (storageKey?: string | null): boolean => {
-  if (!storageKey) {
-    return false
-  }
-
-  const ext = path.extname(storageKey).toLowerCase()
-  return ext !== '' && IMAGE_EXTENSIONS.has(ext)
 }
 
 export default eventHandler(async (event) => {
@@ -88,7 +66,7 @@ export default eventHandler(async (event) => {
       if (
         existingPhoto &&
         isVideoUpload &&
-        isLikelyImageKey(existingPhoto.storageKey)
+        isSupportedImageKey(existingPhoto.storageKey)
       ) {
         existingPhoto = null
       }
