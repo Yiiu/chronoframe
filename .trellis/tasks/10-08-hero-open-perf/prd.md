@@ -1,0 +1,97 @@
+# Hero open performance
+
+## Goal
+
+The photo viewer's hero open animation (grid thumbnail → viewer, 420 ms flight) visibly stutters because viewer mount work saturates the main thread during the flight. Cut that work, move the flight off the main thread, and prove it with production-build before/after measurements.
+
+## Background
+
+### Dev-mode baseline (2026-10-08, Playwright + Chromium, RTX 4070 Ti; median of 5)
+
+"Cold" = first open after page load, "warm" = second open in the same page. To be re-measured on the prod build (step 0); these dev numbers are inflated by dev-only costs (see Measurement rules).
+
+| Scenario | Longest task | Dropped frames (rAF) |
+|---|---|---|
+| Open, cold, desktop 1x CPU | 243 ms | 39 |
+| Open, warm, desktop 1x CPU | 139 ms | 24 |
+| Open, mobile viewport, 4x CPU throttle | 160–195 ms | 30–32 |
+| Close, desktop | ~50 ms | 3–4 |
+| Close, mobile 4x | none | 1 |
+
+Compositor view of a warm desktop open (450 ms window, ~110 frames, 3 runs): DROPPED 3–4, PRESENTED_PARTIAL with main animation 54–65 → **flight stall frames ≈ 58–69**.
+
+### Where the time goes (warm, desktop, 0–450 ms after click)
+
+- ~146 ms native rendering of the newly mounted viewer (~391 elements; 3 Swiper slides) — not addressed by these children.
+- 38 ms motion-v `isHidden` forced layouts (~16 motion mounts) → child `viewer-motion-mounts`.
+- 35 ms `OverlayScrollbar` `readMetrics` forced layout → child `scrollbar-lock-metrics`.
+- 18 ms histogram decode/compute/draw + uncacheable thumbnail fetch → child `defer-viewer-noncritical`.
+- 11 ms ThumbHash decode — out of scope.
+- The flight animates `left/top/width/height` on the main thread (`useHeroTransition.ts:99`) → child `hero-transform-flight`.
+- After the flight: per-frame `gl.getError()` (114 ms in one open) hurts zoom/pan → child `webgl-render-geterror`.
+
+## Task map and order
+
+| # | Child | Deliverable |
+|---|---|---|
+| 0 | `10-08-prod-build-unhead-legacy` | Prod build starts (local + Docker); enables prod measurements |
+| 1 | `10-08-webgl-render-geterror` | No per-frame `gl.getError()` outside debug |
+| 2 | `10-08-scrollbar-lock-metrics` | No OverlayScrollbar forced layout during viewer open |
+| 3 | `10-08-defer-viewer-noncritical` | Histogram starts after the flight lands; thumbnail cacheable |
+| 4 | `10-08-viewer-motion-mounts` | Hint/reaction controls only on the current slide |
+| 5 | `10-08-hero-transform-flight` | Flight runs on `transform` via the compositor |
+
+Sequential, one commit per child, measured after each (see `implement.md`). Step 0 precedes a prod re-baseline that replaces the dev table above as the reference.
+
+## Decisions (user, 2026-10-08)
+
+- Create a parent task with child tasks (Trellis A).
+- Hint/reaction controls only on the current slide (child 4, option A).
+- Histogram deferred only during hero opens (child 3, option A).
+- Acceptance emphasis on animation smoothness with a main-thread target (option A).
+- Fix the prod build first and measure on prod (option A); remove the unused direct `@unhead/vue` (technical choice).
+
+## Measurement rules
+
+- Production build only (`.trellis/spec/app/frontend/dashboard-photos-list.md:211`, `bulk-upload.md:200`: dev Tailwind JIT ≈124 ms + `createDevRenderContext` pollute numbers).
+- "Flight stall frames" = frames in the 450 ms window after click where the flight did not advance: trace `PipelineReporter` DROPPED, plus PRESENTED_PARTIAL with `has_main_animation` while the flight is main-driven. Once the flight is a compositor animation, only DROPPED counts. The rAF "dropped frames" column measures the main thread, not the animation.
+- Scripts and usage: `research/README.md`.
+
+## Acceptance Criteria
+
+- [ ] Prod build, warm desktop open: flight stall frames ≤ 2, with the flight confirmed composited (no `compositeFailed`).
+- [ ] Prod build, warm desktop open: longest main-thread task ≤ 90 ms. If the prod re-baseline is already ≤ 90 ms, report the before/after delta instead and flag it.
+- [ ] Prod build, mobile viewport 4× CPU: flight stall frames clearly lower than the prod re-baseline (no fixed number).
+- [ ] Hero behaviour unchanged to the eye (path, 420 ms + 150 ms crossfade, landing box); `research/hero.cjs` desktop (21) and mobile (9) scenarios all pass.
+- [ ] Before/after numbers for every scenario recorded in a Results section of this PRD.
+- [ ] `pnpm lint` passes; `test/composables/heroReducer.test.ts`, `test/utils/heroFrame.test.ts` pass.
+
+## Results
+
+### Step 0 — prod re-baseline (2026-10-08, after `@unhead/vue` removal; prod server on :4100)
+
+Median of 5 (perf.cjs); stall frames from ctrace.cjs (3 runs, 450 ms window).
+
+| Scenario | Longest task | Long tasks total | Dropped (rAF) | Flight stall frames |
+|---|---|---|---|---|
+| Open cold, desktop 1x | 202 ms | 457 ms | 40 | — |
+| Open warm, desktop 1x | 120 ms | 226 ms | 28 | 47–50 (DROPPED 8–21 + PARTIAL/main 29–39) |
+| Close warm, desktop 1x | 111 ms | 111 ms | 7 | — |
+| Open cold, mobile 4x | 582 ms | 806 ms | 61 | — |
+| Open warm, mobile 4x | 326 ms | 624 ms | 49 | ~63–65 of ~70 (almost all DROPPED) |
+| Close warm, mobile 4x | none | 0 | 3 | — |
+
+hero.cjs: desktop 21/21, mobile 9/9 pass.
+
+Prod warm-open profile (minified; attributed by inspecting bundles and call chains), times relative to click:
+
+- motion-v `isHidden` (`gw` in `BCaqbMnQ.js`): 89 ms self — largest JS cost (dev showed 38 ms) → child 4.
+- Histogram: `getImageData` at 305–327 ms (in flight); animated 2D draw (`fill`/`createLinearGradient`/`addColorStop`) 383–941 ms → child 3.
+- **New:** InfoPanel mini map (maplibre, `ovk_0U_A.js`): WebGL `getContext` at 231–241 ms (10 ms) + shader programs at 348–369 ms (~17 ms) — inside the flight, not covered by any child yet.
+- WebGL image viewer `getContext` (76 ms) at 976–1041 ms — after the flight; not a flight cost.
+
+## Out of scope
+
+- Native rendering cost of mounting the viewer (~146 ms dev) and splitting viewer mount across frames.
+- Backdrop `backdrop-filter: blur()` animation (`Viewer.vue:581`), ThumbHash decode, the decoder worker re-fetching the original (HTTP-cached).
+- Making the `build` npm script cross-platform.

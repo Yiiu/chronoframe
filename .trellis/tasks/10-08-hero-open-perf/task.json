@@ -1,0 +1,33 @@
+{
+  "id": "hero-open-perf",
+  "name": "hero-open-perf",
+  "title": "Hero open performance",
+  "description": "Cut main-thread work and jank during the photo viewer hero open animation, measured before/after with the Playwright perf script",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "y",
+  "assignee": "y",
+  "createdAt": "2026-10-08",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "10-08-webgl-render-geterror",
+    "10-08-scrollbar-lock-metrics",
+    "10-08-defer-viewer-noncritical",
+    "10-08-viewer-motion-mounts",
+    "10-08-hero-transform-flight",
+    "10-08-prod-build-unhead-legacy"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
