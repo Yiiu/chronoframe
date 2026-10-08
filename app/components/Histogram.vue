@@ -38,6 +38,11 @@ const cleanup = () => {
   }
 }
 
+// Hero 飞行中(与 Viewer.vue heroMasking 同一判定)不解码/计算，落地后再开始。
+// pendingHero 在点击时同步设置，heroCovering 要到查看器挂载后下一 tick 才为 true。
+const { heroCovering, pendingHero } = storeToRefs(useViewerState())
+const heroMasking = computed(() => heroCovering.value || !!pendingHero.value)
+
 watchEffect(() => {
   isLoading.value = true
   isError.value = false
@@ -46,12 +51,16 @@ watchEffect(() => {
   // 如果有正在加载的缩略图，打断
   cleanup()
 
+  if (heroMasking.value) return
+
   const img = new Image()
   currentImage = img
   img.crossOrigin = 'anonymous'
 
   const url = new URL(props.thumbnailUrl, window.location.origin)
-  url.searchParams.set('_cors', Date.now().toString())
+  // 固定参数：与网格非 CORS <img> 的缓存条目分开(避免复用无 CORS 头的响应)，
+  // 又保持 URL 稳定以命中 HTTP 缓存
+  url.searchParams.set('_cors', '1')
   img.src = url.toString()
 
   img.onload = () => {

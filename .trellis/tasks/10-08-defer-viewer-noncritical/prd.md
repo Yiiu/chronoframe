@@ -23,12 +23,12 @@ Keep the histogram's image decode + `getImageData` + compute + animated draw (~1
 
 ## Acceptance Criteria
 
-- [ ] Profile of a warm hero open shows no `Histogram.vue` / `histogram.ts` / `getImageData` samples inside the flight window (0–420 ms after click).
-- [ ] Same profile shows no maplibre `getContext` / shader compile (`getProgramParameter`) inside the flight window; the mini map renders after landing for a photo with GPS data.
-- [ ] After landing, the histogram renders for the current photo (visual check + no console errors).
-- [ ] Switching photos inside the viewer re-renders the histogram without waiting.
-- [ ] Opening the same photo twice issues at most one network request for its histogram thumbnail (second served from cache).
-- [ ] hero.cjs scenarios all pass.
+- [x] Profile of a warm hero open shows no `Histogram.vue` / `histogram.ts` / `getImageData` samples inside the flight window (0–420 ms after click).
+- [x] Same profile shows no maplibre `getContext` / shader compile (`getProgramParameter`) inside the flight window; the mini map renders after landing for a photo with GPS data.
+- [x] After landing, the histogram renders for the current photo (visual check + no console errors).
+- [x] Switching photos inside the viewer re-renders the histogram without waiting.
+- [x] Opening the same photo twice issues at most one network request for its histogram thumbnail (second served from cache).
+- [x] hero.cjs scenarios all pass.
 
 ## Out of scope
 

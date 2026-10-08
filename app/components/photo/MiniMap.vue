@@ -17,6 +17,19 @@ const isAnimating = ref(false)
 const mapInstance = ref<MapInstance | null>(null)
 let animationTimer: ReturnType<typeof setTimeout> | null = null
 
+// Hero 飞行中(与 Viewer.vue heroMasking 同一判定)不创建地图(WebGL 上下文 + 着色器编译)；
+// 落地后挂载一次并保持，之后切换照片仍走 flyTo
+const { heroCovering, pendingHero } = storeToRefs(useViewerState())
+const heroMasking = computed(() => heroCovering.value || !!pendingHero.value)
+const mapReady = ref(!heroMasking.value)
+if (!mapReady.value) {
+  const stop = watch(heroMasking, (masking) => {
+    if (masking) return
+    mapReady.value = true
+    stop()
+  })
+}
+
 const onMapLoad = (map: MapInstance) => {
   mapInstance.value = map
   map.setCenter([props.longitude, props.latitude])
@@ -83,7 +96,16 @@ onUnmounted(() => {
   <div
     class="relative w-full h-44 overflow-hidden rounded-lg border border-white/10 dark:border-white/10"
   >
+    <div
+      v-if="!mapReady"
+      class="absolute inset-0 bg-default/80 flex items-center justify-center backdrop-blur-sm"
+    >
+      <p class="text-xs font-medium text-white/60">
+        {{ $t('minimap.loading') }}
+      </p>
+    </div>
     <MapProvider
+      v-else
       class="w-full h-full relative overflow-hidden"
       :map-id="MAPID"
       :zoom="12"

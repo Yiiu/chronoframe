@@ -97,6 +97,28 @@ Prod warm-open profile (minified; attributed by inspecting bundles and call chai
 - hero.cjs desktop 21/21; mobile.cjs swipe navigates, zoomed drag pans.
 - Follow-up noted by review (out of scope): `WebGLImageViewer.vue` `onTransformChange` → `updateTransformState` calls `engine.getDebugInfo()` every transform change even with debug off (builds a debug object, `getParameter(MAX_TEXTURE_SIZE)` in `core/utils.ts:137`).
 
+### Step 2 — scrollbar: closed without change
+
+Prod probe showed no forced layout (see child PRD Outcome).
+
+### Step 3 — histogram + mini map deferred to after landing (prod)
+
+| Scenario | Longest task | Long tasks total | Dropped (rAF) | Flight stall frames |
+|---|---|---|---|---|
+| Open warm, desktop 1x | 63 ms (was 120) | 106 ms (was 226) | 15 (was 28) | 41–69 (DROPPED 5–16 + PARTIAL/main 36–64) — flight still main-driven |
+| Open cold, desktop 1x | 138 ms (was 202) | 343 ms (was 457) | 26 (was 40) | — |
+| Open warm, mobile 4x | 297 ms (was 326) | 714 ms (was 624) | 48 (was 49) | ~mostly DROPPED, unchanged — InfoPanel is closed by default on mobile, so this step doesn't apply there |
+
+- Canvas/WebGL native time starting in the 0–450 ms window (`research/attrib.py`): 99.6 ms → 0 ms. Map now starts ~754 ms, histogram ~937 ms after click.
+- Histogram thumbnail: second open `fromDiskCache: true` (CDP).
+- **Main-thread acceptance target (≤ 90 ms warm desktop) met at this step.**
+- hero.cjs: desktop 6× 21/21, mobile 3× 9/9; reduced-motion open shows photo + histogram + map.
+
+Bugs found and fixed along the way (pre-existing on `main`, separate commits, cherry-pickable):
+
+- `3f5eef6 fix(hero): clear pendingHero under reduced motion` — with prefers-reduced-motion the photo never appeared (only the thumbhash wash), because `pendingHero` was never cleared and `heroMasking` stayed true. Confirmed by screenshot before/after.
+- `82c9f86 fix(hero): ignore flight/fade callbacks after their handle is stopped` — motion-v `stop()` on a JS animation past its end time completes it and resolves `then()`; closing in the frame the entry flight lands ran `settle()` after the exit started, hiding the overlay mid return-flight and leaving the grid thumbnail `visibility:hidden`. `research/landrace.cjs` (close at 380–470 ms): 4/80 stuck before, 0/80 after.
+
 ## Out of scope
 
 - Native rendering cost of mounting the viewer (~146 ms dev) and splitting viewer mount across frames.
