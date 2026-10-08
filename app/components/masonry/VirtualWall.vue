@@ -327,16 +327,25 @@ const scrollToPhoto = (
   })
 }
 
-// Keep the viewer's current photo mounted & centered while browsing, so the
-// hero return flight always has its grid target in place.
-watch(currentPhotoIndex, () => {
-  const wallIndex = currentWallIndex.value
-  if (isViewerOpen.value && wallIndex >= 0) {
+// Keep the viewer's current photo mounted & centered while browsing in the
+// viewer, so the hero return flight always has its grid target in place.
+// Only in-viewer navigation scrolls: the open itself is excluded (the viewer
+// was closed before this change). `openViewer` sets the index and the open
+// flag in the same tick, so the previous open-state is what tells them apart.
+// On open the clicked thumb is already on screen, and scrolling during the
+// hero flight triggers scroll-driven work (e.g. the back-to-top mount).
+// Deep links are handled by the `layout` once-watcher above.
+watch(
+  [currentPhotoIndex, isViewerOpen],
+  ([index, open], [prevIndex, wasOpen]) => {
+    if (index === prevIndex || !open || !wasOpen) return
+    const wallIndex = currentWallIndex.value
+    if (wallIndex < 0) return
     nextTick(() => {
       scrollToPhoto(wallIndex)
     })
-  }
-})
+  },
+)
 </script>
 
 <template>

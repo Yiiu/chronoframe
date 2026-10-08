@@ -38,7 +38,7 @@ Compositor view of a warm desktop open (450 ms window, ~110 frames, 3 runs): DRO
 | 1 | `10-08-webgl-render-geterror` | No per-frame `gl.getError()` outside debug |
 | 2 | `10-08-scrollbar-lock-metrics` | No OverlayScrollbar forced layout during viewer open |
 | 3 | `10-08-defer-viewer-noncritical` | Histogram starts after the flight lands; thumbnail cacheable |
-| 4 | `10-08-viewer-motion-mounts` | Hint/reaction controls only on the current slide |
+| 4 | `10-08-viewer-motion-mounts` | (re-scoped) The viewer open no longer smooth-scrolls the gallery behind it |
 | 5 | `10-08-hero-transform-flight` | Flight runs on `transform` via the compositor |
 
 Sequential, one commit per child, measured after each (see `implement.md`). Step 0 precedes a prod re-baseline that replaces the dev table above as the reference.
@@ -118,6 +118,20 @@ Bugs found and fixed along the way (pre-existing on `main`, separate commits, ch
 
 - `3f5eef6 fix(hero): clear pendingHero under reduced motion` — with prefers-reduced-motion the photo never appeared (only the thumbhash wash), because `pendingHero` was never cleared and `heroMasking` stayed true. Confirmed by screenshot before/after.
 - `82c9f86 fix(hero): ignore flight/fade callbacks after their handle is stopped` — motion-v `stop()` on a JS animation past its end time completes it and resolves `then()`; closing in the frame the entry flight lands ran `settle()` after the exit started, hiding the overlay mid return-flight and leaving the grid thumbnail `visibility:hidden`. `research/landrace.cjs` (close at 380–470 ms): 4/80 stuck before, 0/80 after.
+
+### Step 4 — (re-scoped) the open no longer scrolls the gallery
+
+- First attempt (hint/reaction controls only on the current slide) measured no gain and was reverted — see child PRD "Original premise".
+- Root cause of the prod `isHidden` cost: `VirtualWall.vue` smooth-scrolled the page on every open; crossing `scrollTop > 500` mounted the back-to-top `motion.div` behind the viewer, whose mount-time `offsetParent` read forced a ~62–70 ms full-gallery layout mid-flight.
+- After fix (prod, warm open nth(5)→nth(10)): no window scroll during open (scrollY 245 → 245); offsetParent read time 79.6 → 10.3 ms; motion-v `isHidden` profile self time 88 → 9.4 ms.
+- In-viewer navigation still centres (4× ArrowRight → 4 smooth scrolls); close after navigation lands exactly on the new thumb and restores it.
+- hero.cjs desktop 21/21, mobile 9/9.
+
+### Measurement notes (from step 4 on)
+
+- Script fix: `perf.cjs` / `ctrace.cjs` now scroll the target into view and wait 600 ms before clicking (and before starting the profiler). Previously Playwright's click scrolled first, so the page reacted to that scroll during the flight (same back-to-top mount) — this inflated some earlier numbers. Earlier per-step tables were measured with the old script; they are comparable to each other but not to later runs.
+- Run-to-run noise is larger than single-step effects (warm desktop longest task 63–94 ms across runs of near-identical builds; mobile 4× 190–392 ms). Per-step evidence therefore uses each step's targeted metric; the final verdict is an A/B of the step-0 build vs the final build with the fixed script and more runs.
+- Build environment: `.output` became undeletable (sharp native modules locked by an unidentified process). Builds since step 4 go to the session scratchpad via a TEMP, uncommitted `nuxt.config.ts` change (`CF_OUTPUT_DIR`), to be reverted before closing the task.
 
 ## Out of scope
 

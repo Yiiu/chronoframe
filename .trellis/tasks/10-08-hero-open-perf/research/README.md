@@ -6,6 +6,8 @@ Run against a server (prod build preferred, see parent PRD). Outputs go to `$OUT
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm i --prefix <scratch> playwright-core
     NODE_PATH=<scratch>/node_modules OUT_DIR=<scratch> node perf.cjs http://localhost:4100 1 desktop profile
 
+Targets are scrolled into view and settled before each click (a click on an off-screen thumb would scroll mid-flight and mount gallery chrome like the back-to-top button — a test artifact worth ~60 ms).
+
 Chromium path is hard-coded to the cached `chromium-1223` (see `.claude/skills/verify`).
 
 | Script | Measures |

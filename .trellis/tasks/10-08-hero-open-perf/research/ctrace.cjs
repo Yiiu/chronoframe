@@ -13,9 +13,11 @@ const [BASE, RUNS = 3, CPU = 1, MODE] = process.argv.slice(2)
     await page.goto(BASE + '/', { waitUntil: 'load', timeout: 120000 })
     const a = page.locator('[data-photo-id]').nth(2 + i), b = page.locator('[data-photo-id]').nth(7 + i)
     await a.waitFor({ timeout: 120000 }); await page.waitForTimeout(2000)
+    await a.scrollIntoViewIfNeeded(); await page.waitForTimeout(600)
     await a.click(); await page.waitForTimeout(1500); await page.keyboard.press('Escape'); await page.waitForTimeout(1500) // 预热
     const path = (process.env.OUT_DIR || __dirname) + `/ct-${i}.json`
     await browser.startTracing(page, { path, categories: ['cc', 'viz', 'benchmark', 'devtools.timeline'] })
+    await b.scrollIntoViewIfNeeded(); await page.waitForTimeout(600) // 避免 click 自带滚动干扰
     await b.click(); await page.waitForTimeout(700)
     await browser.stopTracing()
     const d = JSON.parse(fs.readFileSync(path)); const ev = d.traceEvents || d

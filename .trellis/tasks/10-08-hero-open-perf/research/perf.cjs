@@ -64,6 +64,8 @@ const pct = (arr, p) => { const s = [...arr].sort((a, b) => a - b); return s.len
     const target = page.locator('[data-photo-id]').nth(1 + i) // 每轮换一张，避免缓存掩盖首开成本
     await target.waitFor({ timeout: 120000 })
     await page.waitForTimeout(2000)
+    // 先滚到可见并等滚动事件处理完：否则 click 会先滚动，页面在飞行中响应滚动（如回到顶部按钮挂载），真实用户不会遇到
+    await target.scrollIntoViewIfNeeded(); await page.waitForTimeout(600)
     await page.evaluate(() => (window.__lt = []))
     if (PROFILE && i === RUNS - 1) { await cdp.send('Profiler.enable'); await cdp.send('Profiler.setSamplingInterval', { interval: 200 }); await cdp.send('Profiler.start') }
     results.push(await measure('open', () => target.click(), 900))
@@ -73,6 +75,7 @@ const pct = (arr, p) => { const s = [...arr].sort((a, b) => a - b); return s.len
     // 同一页面再开一张：热启动（组件和依赖已加载、编译）
     await page.waitForTimeout(1200)
     const t2 = page.locator('[data-photo-id]').nth(6 + i)
+    await t2.scrollIntoViewIfNeeded(); await page.waitForTimeout(600)
     await page.evaluate(() => (window.__lt = []))
     if (PROFILE && i === RUNS - 1) { await cdp.send('Profiler.start') }
     results.push(await measure('open-warm', () => t2.click(), 900))
