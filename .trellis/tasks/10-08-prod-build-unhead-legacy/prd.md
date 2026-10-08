@@ -23,11 +23,11 @@ Parent: `10-08-hero-open-perf`. Order: **first** — every other child measures 
 
 ## Acceptance Criteria
 
-- [ ] `pnpm why unhead` (or lockfile inspection) shows a single major (3.x).
-- [ ] `.output/server/node_modules/unhead/dist/legacy.mjs` exists after build.
-- [ ] Prod server starts; `/` and `/<photoId>` return 200; opening a photo in the browser works (no console errors).
-- [ ] Docker image builds and serves `/` with 200.
-- [ ] `pnpm lint` and existing tests pass.
+- [x] `pnpm why unhead` (or lockfile inspection) shows a single major (3.x).
+- [x] `.output/server/node_modules/unhead/dist/legacy.mjs` exists after build.
+- [x] Prod server starts; `/` and `/<photoId>` return 200; opening a photo in the browser works (no console errors).
+- [ ] (pending: Docker Desktop not running) Docker image builds and serves `/` with 200.
+- [x] `pnpm lint` and existing tests pass.
 
 ## Out of scope
 
