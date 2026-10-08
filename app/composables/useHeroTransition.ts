@@ -254,8 +254,17 @@ export function useHeroTransition(options: Options) {
   }
 
   const onViewerOpen = () => {
-    // A re-open mid-exit must abandon the reverse flight before flying in again.
-    if (state.value === 'exiting') stopAnims()
+    if (state.value === 'exiting') {
+      // Re-opened without a hero source (back/forward navigation): no entry will
+      // fly, so finish the abandoned exit — otherwise the overlay stays parked
+      // over the viewer and the grid thumbnail stays hidden.
+      if (!pendingHero.value) {
+        finishExit()
+        return
+      }
+      // A re-open mid-exit must abandon the reverse flight before flying in again.
+      stopAnims()
+    }
     startEntry()
   }
 
