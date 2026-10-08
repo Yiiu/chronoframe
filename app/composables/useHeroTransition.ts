@@ -1,11 +1,18 @@
 import { animate } from 'motion-v'
 import { heroReducer, type HeroState } from './heroReducer'
-import { computeContainFit, type Rect } from '~/utils/heroFrame'
+import {
+  computeContainFit,
+  largerRect,
+  rectToTransform,
+  type Rect,
+} from '~/utils/heroFrame'
 
 // Flight tuning. The ease keeps visible travel across the whole duration — a
 // pure ease-out lands in the first ~80ms and reads as "no animation".
 const FLIGHT = { duration: 0.42, easing: [0.32, 0.72, 0, 1] as const }
 const CROSSFADE_MS = 150
+// CSS form of FLIGHT.easing for the native (compositor) flight animation.
+const FLIGHT_CSS_EASING = `cubic-bezier(${FLIGHT.easing.join(', ')})`
 
 interface ResolvedThumb {
   el: HTMLElement
@@ -27,7 +34,8 @@ interface Options {
 // motion-v's animate() returns playback controls that are also a thenable.
 // Caution: stop() on a JS-driven animation first ticks it to "now"; if the end
 // time has already passed it completes and resolves `then` anyway. Callbacks must
-// therefore check they still own the handle (see flyTo / settle).
+// therefore check they still own the handle (see flyTo / settle). The native
+// flight handle (flyTo) follows the same contract.
 type AnimHandle = { stop: () => void; then: (cb: () => void) => void }
 
 function rectFrom(el: Element): Rect {
@@ -49,7 +57,8 @@ export function useHeroTransition(options: Options) {
   // Both handles are owned so they can be cancelled. An un-cancelled WAAPI
   // opacity animation keeps overriding inline styles on the next open, which is
   // why a re-open used to fly invisibly (computed opacity stuck at 0).
-  let flightHandle: AnimHandle | null = null
+  // The flight is native WAAPI: its handle only needs stop() (= cancel()).
+  let flightHandle: { stop: () => void } | null = null
   let fadeHandle: AnimHandle | null = null
   let lastTarget: Rect | null = null
   let hiddenEl: HTMLElement | null = null
@@ -73,8 +82,14 @@ export function useHeroTransition(options: Options) {
     // Once it *finishes* its handle is dropped, but the animation keeps holding
     // opacity:0 and overrides inline styles on the next open — cancel it outright
     // so `showOverlayAt`'s opacity:1 actually takes effect.
+    // This also cancels the native transform flight; drop the transform-origin
+    // it set so the next showOverlayAt starts from a clean, untransformed box.
     const el = overlayRef.value
-    if (el) el.getAnimations().forEach((a) => a.cancel())
+    if (el) {
+      el.getAnimations().forEach((a) => a.cancel())
+      el.style.removeProperty('transform')
+      el.style.removeProperty('transform-origin')
+    }
   }
 
   const hideEl = (el: HTMLElement) => {
@@ -120,32 +135,49 @@ export function useHeroTransition(options: Options) {
     return computeContainFit(rectFrom(viewport), naturalWidth, naturalHeight)
   }
 
+  // The flight animates only `transform` via native WAAPI so Chromium runs it on
+  // the compositor and it keeps moving while the main thread mounts the viewer.
+  // The overlay is laid out once at the larger of the two rects (sharp raster at
+  // the large end, scaled down at the small end) and transformed between them.
   const flyTo = (from: Rect, target: Rect, onDone: () => void) => {
     const el = overlayRef.value
     if (!el) return onDone()
     flightHandle?.stop()
-    const handle = animate(
-      el,
+    const box = largerRect(from, target)
+    // Same task as the caller's showOverlayAt(from) → no frame painted at `box`
+    // before the start transform applies.
+    showOverlayAt(el, box)
+    el.style.transformOrigin = '0 0'
+    const anim = el.animate(
+      [
+        { transform: rectToTransform(from, box) },
+        { transform: rectToTransform(target, box) },
+      ],
       {
-        left: [`${from.left}px`, `${target.left}px`],
-        top: [`${from.top}px`, `${target.top}px`],
-        width: [`${from.width}px`, `${target.width}px`],
-        height: [`${from.height}px`, `${target.height}px`],
-        // Pin opacity to 1 for the whole flight. motion-v retains a per-element
-        // opacity MotionValue from the previous settle crossfade and would
-        // otherwise re-assert its stale 0 every frame, flying the overlay invisibly.
-        opacity: [1, 1],
+        duration: FLIGHT.duration * 1000,
+        easing: FLIGHT_CSS_EASING,
+        fill: 'forwards',
       },
-      { duration: FLIGHT.duration, ease: FLIGHT.easing },
-    ) as AnimHandle
+    )
+    const handle = { stop: () => anim.cancel() }
     flightHandle = handle
-    handle.then(() => {
-      // A flight stopped right at its end time still resolves; ignore it once
-      // it has been stopped or replaced, or a closed entry would run settle().
-      if (flightHandle !== handle) return
-      flightHandle = null
-      onDone()
-    })
+    anim.finished.then(
+      () => {
+        // `finished` can resolve in the same frame the flight is cancelled or
+        // replaced; ignore it once we no longer own the handle.
+        if (flightHandle !== handle) return
+        flightHandle = null
+        // Commit the end state as layout, then drop the fill so nothing holds
+        // the transform — settle() / the landing code see the overlay at `target`.
+        showOverlayAt(el, target)
+        el.style.removeProperty('transform')
+        el.style.removeProperty('transform-origin')
+        anim.cancel()
+        onDone()
+      },
+      // cancel() rejects `finished` with AbortError → swallowed; onDone never runs.
+      () => {},
+    )
   }
 
   const settle = () => {

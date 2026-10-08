@@ -38,3 +38,19 @@ export function computeContainFit(
     height,
   }
 }
+
+/** The rect with the larger area; ties return the first argument. */
+export function largerRect(a: Rect, b: Rect): Rect {
+  return b.width * b.height > a.width * a.height ? b : a
+}
+
+/**
+ * CSS transform that maps `box` onto `rect`, assuming `transform-origin: 0 0`
+ * on an element laid out at `box`. Identity when `rect` equals `box`.
+ * A degenerate box (zero width/height) falls back to scale 1.
+ */
+export function rectToTransform(rect: Rect, box: Rect): string {
+  const sx = box.width > 0 ? rect.width / box.width : 1
+  const sy = box.height > 0 ? rect.height / box.height : 1
+  return `translate(${rect.left - box.left}px, ${rect.top - box.top}px) scale(${sx}, ${sy})`
+}
