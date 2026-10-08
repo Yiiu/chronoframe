@@ -175,7 +175,7 @@ Compositor (ctrace.cjs, 450 ms after click; desktop 8 runs, mobile 5 runs):
 - `transition-all` elements start main-thread `scrollbar-color` transitions during open (16 elements), and grid items' `transition-all` turns the hero's `visibility:hidden` into a transition.
 - `WebGLImageViewer.vue` calls `engine.getDebugInfo()` on every transform change even with debug off.
 - Local `.output` directory is locked by an unidentified process (sharp native modules) — delete after a reboot.
-- Docker (Linux) build check for `f18e9ae` still pending (needs Docker Desktop running).
+- Docker: done — see child `10-08-prod-build-unhead-legacy` Outcome (needs `1298c03` + `f18e9ae`).
 
 ## Out of scope
 

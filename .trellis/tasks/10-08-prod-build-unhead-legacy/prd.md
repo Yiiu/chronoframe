@@ -26,9 +26,18 @@ Parent: `10-08-hero-open-perf`. Order: **first** — every other child measures 
 - [x] `pnpm why unhead` (or lockfile inspection) shows a single major (3.x).
 - [x] `.output/server/node_modules/unhead/dist/legacy.mjs` exists after build.
 - [x] Prod server starts; `/` and `/<photoId>` return 200; opening a photo in the browser works (no console errors).
-- [ ] (pending: Docker Desktop not running) Docker image builds and serves `/` with 200.
+- [x] Docker image builds and serves (`/` 302 → `/onboarding` 200 on a fresh DB; `/api/photos` 200).
 - [x] `pnpm lint` and existing tests pass.
 
 ## Out of scope
 
 - Making the `build` script cross-platform (note only).
+
+## Outcome (2026-10-08): Docker verification
+
+Built from `git archive` contexts, through the host proxy (`--build-arg HTTP(S)_PROXY=http://host.docker.internal:13923`; Docker builds don't inherit the host proxy, and without it pnpm 12's platform-binary download times out).
+
+- Found a second, independent break from `a09a54b`: `better-sqlite3` 13 has `binding.gyp` but no install script, so with `allowBuilds: better-sqlite3: true` pnpm ran an implicit `node-gyp rebuild`; the alpine deps stage has no Python/compiler → `pnpm install --frozen-lockfile` failed, **no image could be built** (both before and after `f18e9ae`). Fixed in `1298c03` (`allowBuilds: better-sqlite3: false`; 13.x ships prebuilds incl. linuxmusl-x64/arm64, loaded at runtime, traced by Nitro into `.output`).
+- With `1298c03` applied to the pre-fix code (`ef253e6`): image builds but the container exits 1 with `ERR_MODULE_NOT_FOUND .../unhead/dist/legacy.mjs` → the unhead break is **not Windows-only**.
+- With both fixes (`HEAD`): migrations run (better-sqlite3 prebuild loads), `/api/photos` 200, `/` 302 → `/onboarding` 200.
+- Conclusion: Docker deployment needs both `1298c03` and `f18e9ae`.
