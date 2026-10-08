@@ -11,7 +11,9 @@ peerDependencyRules:
 
 allowBuilds:
   '@parcel/watcher': true
-  better-sqlite3: true
+  # 13.x ships prebuilds (incl. linuxmusl-x64) and loads them at runtime; building
+  # from source needs Python + a compiler, which the alpine Docker image lacks.
+  better-sqlite3: false
   esbuild: true
   sharp: true
   vue-demi: true
