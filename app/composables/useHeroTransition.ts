@@ -306,7 +306,12 @@ export function useHeroTransition(options: Options) {
     // Fly from the image's current on-screen box back to the grid thumbnail. The
     // box is the contain-fit of the displayed photo; fall back to the last known
     // target, then to the destination rect (a no-op move) if all else fails.
-    const gridImg = dest.el.querySelector('img')
+    // The grid item also holds the thumbhash placeholder <img> (a ~32 px decode
+    // with its own aspect), so measure the real thumbnail: the largest image.
+    const gridImg = [...dest.el.querySelectorAll('img')].reduce<HTMLImageElement | null>(
+      (best, img) => (img.naturalWidth > (best?.naturalWidth ?? 0) ? img : best),
+      null,
+    )
     const from =
       (gridImg?.naturalWidth
         ? resolveTarget(gridImg.naturalWidth, gridImg.naturalHeight)
