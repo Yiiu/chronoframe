@@ -1,0 +1,21 @@
+// 表态按钮：点开 → 再点关（不应关了又开）→ 再开 → 点外部关；切换照片后按钮仍可用
+const { chromium } = require('playwright-core')
+;(async () => {
+  const b = await chromium.launch({ executablePath: 'C:/Users/a1103/AppData/Local/ms-playwright/chromium-1223/chrome-win64/chrome.exe' })
+  const p = await b.newPage({ viewport: { width: 1440, height: 900 } })
+  const errs = []; p.on('pageerror', (e) => errs.push(e.message))
+  await p.goto(process.argv[2] + '/DSCF2291', { waitUntil: 'load', timeout: 180000 })
+  const btn = () => p.locator('.swiper-slide-active button', { hasText: /表态|React/ }).first()
+  await btn().waitFor({ timeout: 180000 }); await p.waitForTimeout(2500)
+  const open = () => p.evaluate(() => !!document.querySelector('.absolute.bottom-full.right-0.mb-2.z-30'))
+  const r = {}
+  await btn().click(); await p.waitForTimeout(700); r.afterClick1 = await open()
+  await btn().click(); await p.waitForTimeout(700); r.afterClick2 = await open()
+  await btn().click(); await p.waitForTimeout(700); r.reopened = await open()
+  await p.mouse.click(400, 300); await p.waitForTimeout(700); r.afterOutside = await open()
+  await p.keyboard.press('ArrowRight'); await p.waitForTimeout(1500)
+  await btn().click(); await p.waitForTimeout(700); r.nextPhotoOpen = await open()
+  await btn().click(); await p.waitForTimeout(700); r.nextPhotoClosed = await open()
+  console.log(JSON.stringify({ ...r, url: p.url(), errors: errs }))
+  await b.close()
+})()

@@ -11,7 +11,6 @@ interface Props {
   width?: number
   height?: number
   className?: string
-  enableZoom?: boolean
   isCurrentImage?: boolean
   loadingIndicatorRef: LoadingIndicatorRef | null
   onProgress?: (progress: number) => void
@@ -30,7 +29,6 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  enableZoom: true,
   isCurrentImage: true,
   thumbnailSrc: '',
   thumbhash: null,

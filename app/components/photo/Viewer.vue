@@ -44,7 +44,15 @@ const showZoomLevel = ref(false)
 const zoomLevelTimer = ref<NodeJS.Timeout | null>(null)
 
 const showReactionPicker = ref(false)
-const reactionButtonRef = ref<HTMLButtonElement | null>(null)
+const reactionButtonRef = ref<HTMLElement | null>(null)
+// The reaction button renders on every Swiper slide; a plain string ref inside
+// the v-for collects an array of component instances, which ReactionPicker's
+// onClickOutside `ignore` can't use. Keep only the current slide's DOM element.
+const setReactionButtonRef = (el: unknown, isCurrent: boolean) => {
+  if (!isCurrent) return
+  reactionButtonRef.value =
+    (el as { $el?: HTMLElement } | null)?.$el ?? (el as HTMLElement | null)
+}
 const shouldCloseReactionPickerOnClick = ref(false)
 const selectedReaction = ref<string | null>(null)
 const reactionCounts = ref<Record<string, number>>({})
@@ -785,7 +793,6 @@ const swiperModules = [Navigation, Keyboard, Virtual]
                           ? (currentPhoto?.height ?? undefined)
                           : undefined
                       "
-                      :enable-zoom="true"
                       :on-zoom-change="
                         index === currentIndex ? handleZoomChange : undefined
                       "
@@ -927,7 +934,9 @@ const swiperModules = [Navigation, Keyboard, Virtual]
 
                           <!-- 表态按钮 -->
                           <motion.button
-                            ref="reactionButtonRef"
+                            :ref="
+                              (el) => setReactionButtonRef(el, index === currentIndex)
+                            "
                             type="button"
                             :initial="{ scale: 0.8, opacity: 0 }"
                             :animate="{
