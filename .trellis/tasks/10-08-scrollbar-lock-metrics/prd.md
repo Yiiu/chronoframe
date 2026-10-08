@@ -25,3 +25,12 @@ Remove the ~35 ms (dev, warm, desktop) of forced synchronous layout that `Overla
 - [ ] After closing the viewer, the window scrollbar thumb reflects the current scroll position on first scroll/hover.
 - [ ] InfoPanel scrollbar appears and tracks correctly when scrolling the panel.
 - [ ] Other ScrollArea users (`UploadQueuePanel.vue:404`, `UploadFileList.vue:175`) behave as before.
+
+## Outcome (2026-10-08): closed without code change
+
+Prod probe (`research/sbprobe.cjs`, intercepting `Element.prototype.scrollHeight` during a warm hero open, 2 runs):
+
+- Window-mode instance: zero metric reads during open.
+- InfoPanel ScrollArea instance: 3 reads per open (e.g. t=235/521/999 ms and 268/353/616 ms after click), each **≈0 ms** — layout was already clean, no forced layout.
+
+The 35 ms seen in the dev profile was layout work attributed to the read (dev-only costs such as Tailwind JIT style recalc), not present in prod. Decision (user, 2026-10-08): close this child without changing code; requirements R1–R3 are not implemented.

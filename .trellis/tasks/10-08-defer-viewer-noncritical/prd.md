@@ -1,4 +1,4 @@
-# Defer histogram work until the hero flight settles
+# Defer histogram and mini map until the hero flight settles
 
 Parent: `10-08-hero-open-perf` (baseline numbers there). Order: 4th — after `10-08-scrollbar-lock-metrics`, before `10-08-viewer-motion-mounts`.
 
@@ -19,10 +19,12 @@ Keep the histogram's image decode + `getImageData` + compute + animated draw (~1
 - R2. Opens without a hero flight (deep link, reduced motion) and photo switches inside the viewer start the histogram immediately, as today.
 - R3. The histogram thumbnail URL uses a stable cache-separating parameter instead of `Date.now()`, so repeat opens of the same photo hit the HTTP cache while the CORS request stays separate from the grid's non-CORS cache entry.
 - R4. If the viewer is closed or the photo changes before the deferred start, no histogram work runs for the stale photo.
+- R5. The InfoPanel mini map (`app/components/photo/MiniMap.vue`, `MapProvider` inside a fixed `h-44` container; used at `InfoPanel.vue:722`) does not create its map during a hero flight: `MapProvider` mounts once `heroCovering` is false, and stays mounted afterwards (later photo switches keep using `flyTo` as today). The fixed-height container renders immediately, so no layout shift. Decision (user, 2026-10-08): accepted that the map appears ~0.4 s later on hero opens. Prod evidence: maplibre WebGL `getContext` at 231–241 ms + shader programs at 348–369 ms after click (~30 ms, inside the flight).
 
 ## Acceptance Criteria
 
 - [ ] Profile of a warm hero open shows no `Histogram.vue` / `histogram.ts` / `getImageData` samples inside the flight window (0–420 ms after click).
+- [ ] Same profile shows no maplibre `getContext` / shader compile (`getProgramParameter`) inside the flight window; the mini map renders after landing for a photo with GPS data.
 - [ ] After landing, the histogram renders for the current photo (visual check + no console errors).
 - [ ] Switching photos inside the viewer re-renders the histogram without waiting.
 - [ ] Opening the same photo twice issues at most one network request for its histogram thumbnail (second served from cache).
