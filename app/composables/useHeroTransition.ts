@@ -51,6 +51,11 @@ export function useHeroTransition(options: Options) {
   let lastTarget: Rect | null = null
   let hiddenEl: HTMLElement | null = null
   let hiddenPrevVisibility: string | null = null
+  // Bumped whenever an entry is started or abandoned (close / swipe-away). An
+  // entry still waiting on the overlay's `load` event checks it before running,
+  // so a close that lands first can't have a stale entry re-hide the grid
+  // thumbnail and hijack the return flight.
+  let entryGen = 0
 
   const dispatch = (event: Parameters<typeof heroReducer>[1]) => {
     state.value = heroReducer(state.value, event)
@@ -165,6 +170,7 @@ export function useHeroTransition(options: Options) {
     if (!el) return
 
     stopAnims() // cancel any lingering flight/fade from a previous cycle
+    const gen = ++entryGen
     dispatch('OPEN')
     viewer.setHeroActive(true)
     viewer.setHeroCovering(true)
@@ -172,6 +178,7 @@ export function useHeroTransition(options: Options) {
     showOverlayAt(el, pending.rect)
 
     const run = () => {
+      if (gen !== entryGen || state.value !== 'entering') return
       const target = resolveTarget(el.naturalWidth, el.naturalHeight)
       if (!target) {
         // Cannot measure the viewer → skip the fly, hand off immediately.
@@ -210,6 +217,7 @@ export function useHeroTransition(options: Options) {
     // User swiped to another photo before hand-off completed → drop the overlay
     // and reveal whatever slide Swiper landed on.
     if (state.value === 'entering') {
+      entryGen++
       stopAnims()
       dispatch('SWIPE_AWAY')
       restoreEl()
@@ -221,6 +229,7 @@ export function useHeroTransition(options: Options) {
 
   const onViewerClose = () => {
     if (options.disabled) return // reduced-motion → viewer fade owns the transition
+    entryGen++ // abandon an entry still waiting for the overlay to load
     // Closed before any entry ran (opened and dismissed within a tick): nothing
     // has flown or been hidden, so just reset — a reverse flight here would hide
     // the grid thumbnail with no matching restore and leave a black hole.
@@ -229,6 +238,12 @@ export function useHeroTransition(options: Options) {
       return
     }
     dispatch('CLOSE')
+    // Entry was still waiting for the overlay to load: the overlay never left the
+    // grid, so a return flight would jump it to the viewer first. Just reset.
+    if (!lastTarget) {
+      finishExit()
+      return
+    }
     const el = overlayRef.value
     const dest = options.resolveCurrentThumb()
     // Degrade to a plain fade when there is no measurable destination / overlay.
