@@ -23,11 +23,11 @@ The hero flight keeps moving smoothly even while the main thread is busy mountin
 
 ## Acceptance Criteria
 
-- [ ] Prod build, warm desktop open: flight stall frames ≤ 2 (target per user decision A, 2026-10-08), and the trace's Animation events show the flight composited (no `compositeFailed` reasons).
-- [ ] Mobile viewport, 4× CPU throttle: flight stall frames clearly below the post-step-4 measurement (no fixed number).
-- [ ] hero.cjs: all 21 desktop scenarios and 9 mobile scenarios pass, repeated 3×.
-- [ ] Visual check (screenshots mid-flight and at landing) shows no stretching, no blur at the large end, no jump at hand-off.
-- [ ] New unit tests for the rect→transform math pass, along with existing `heroFrame` / `heroReducer` tests.
+- [x] Prod build, warm desktop open: flight stall frames ≤ 2 (median 1 over 8 runs; worst 7) (target per user decision A, 2026-10-08), and the trace's Animation events show the flight composited (no `compositeFailed` reasons).
+- [ ] (not measurable with CPU throttling — see parent PRD) Mobile viewport, 4× CPU throttle: flight stall frames clearly below the post-step-4 measurement (no fixed number).
+- [x] hero.cjs: all 21 desktop scenarios and 9 mobile scenarios pass, repeated 3×.
+- [x] Visual check (screenshots mid-flight and at landing) shows no stretching, no blur at the large end, no jump at hand-off.
+- [x] New unit tests for the rect→transform math pass, along with existing `heroFrame` / `heroReducer` tests.
 
 ## Out of scope
 

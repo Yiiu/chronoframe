@@ -59,12 +59,14 @@ Sequential, one commit per child, measured after each (see `implement.md`). Step
 
 ## Acceptance Criteria
 
-- [ ] Prod build, warm desktop open: flight stall frames ≤ 2, with the flight confirmed composited (no `compositeFailed`).
-- [ ] Prod build, warm desktop open: longest main-thread task ≤ 90 ms. If the prod re-baseline is already ≤ 90 ms, report the before/after delta instead and flag it.
-- [ ] Prod build, mobile viewport 4× CPU: flight stall frames clearly lower than the prod re-baseline (no fixed number).
-- [ ] Hero behaviour unchanged to the eye (path, 420 ms + 150 ms crossfade, landing box); `research/hero.cjs` desktop (21) and mobile (9) scenarios all pass.
-- [ ] Before/after numbers for every scenario recorded in a Results section of this PRD.
-- [ ] `pnpm lint` passes; `test/composables/heroReducer.test.ts`, `test/utils/heroFrame.test.ts` pass.
+See "Acceptance status" under Results for the final verdict per criterion.
+
+- Prod build, warm desktop open: flight stall frames ≤ 2, with the flight confirmed composited (no `compositeFailed`).
+- Prod build, warm desktop open: longest main-thread task ≤ 90 ms. If the prod re-baseline is already ≤ 90 ms, report the before/after delta instead and flag it.
+- Prod build, mobile viewport 4× CPU: flight stall frames clearly lower than the prod re-baseline (no fixed number).
+- Hero behaviour unchanged to the eye (path, 420 ms + 150 ms crossfade, landing box); `research/hero.cjs` desktop (21) and mobile (9) scenarios all pass.
+- Before/after numbers for every scenario recorded in a Results section of this PRD.
+- `pnpm lint` passes; `test/composables/heroReducer.test.ts`, `test/utils/heroFrame.test.ts` pass.
 
 ## Results
 
@@ -132,6 +134,48 @@ Bugs found and fixed along the way (pre-existing on `main`, separate commits, ch
 - Script fix: `perf.cjs` / `ctrace.cjs` now scroll the target into view and wait 600 ms before clicking (and before starting the profiler). Previously Playwright's click scrolled first, so the page reacted to that scroll during the flight (same back-to-top mount) — this inflated some earlier numbers. Earlier per-step tables were measured with the old script; they are comparable to each other but not to later runs.
 - Run-to-run noise is larger than single-step effects (warm desktop longest task 63–94 ms across runs of near-identical builds; mobile 4× 190–392 ms). Per-step evidence therefore uses each step's targeted metric; the final verdict is an A/B of the step-0 build vs the final build with the fixed script and more runs.
 - Build environment: `.output` became undeletable (sharp native modules locked by an unidentified process). Builds since step 4 go to the session scratchpad via a TEMP, uncommitted `nuxt.config.ts` change (`CF_OUTPUT_DIR`), to be reverted before closing the task.
+
+### Step 5 — flight on transform (compositor)
+
+- Overlay flight `Animation` trace event: `compositeFailed: 0` (composited).
+- `freeze.cjs`: aspect 0.75 at 0/25/50/75/100 % of open and close; sharp, no stretch.
+- Found and fixed along the way (pre-existing, separate commits): `7863a1c` exit start box measured from the thumbhash placeholder `<img>` (4 % squash + 15 px landing jump with the transform flight); `199abc6` back→forward during exit left the overlay parked over the viewer.
+- hero.cjs desktop 3×21/21, mobile 3×9/9 (+5 extra mobile runs: one `back@0ms` "PAGE RELOADED" = known script artifact); landrace 0/40; reduced motion, nav-then-close, mobile swipe/pan OK.
+
+### Final A/B — step-0 build (`f18e9ae`) vs final (`199abc6`), prod, fixed scripts
+
+Main thread (perf.cjs; desktop 8 runs, mobile 6 runs; medians):
+
+| Scenario | Longest task base → final | Long tasks total base → final | Dropped (rAF) base → final |
+|---|---|---|---|
+| Open warm, desktop 1x | 147 → **57 ms** | 223 → **57 ms** | 16 → 14 |
+| Open cold, desktop 1x | 147 → **98 ms** | 310 → **159 ms** | 24 → 22 |
+| Open warm, mobile 4x | 333 → 331 ms | 798 → 701 ms | 48 → 44 |
+| Open cold, mobile 4x | 543 → 516 ms | 1027 → 965 ms | 63 → 57 |
+
+Compositor (ctrace.cjs, 450 ms after click; desktop 8 runs, mobile 5 runs):
+
+| Scenario | DROPPED per run base | DROPPED per run final | Flight stall frames (median) |
+|---|---|---|---|
+| Desktop warm | 16,18,11,14,22,18,20,17 (median 18) | 4,0,0,1,4,1,7,1 (median 1) | ≈61 → **≈1** |
+| Mobile 4x warm | 68,68,69,59,61 of ~71 | 68,68,68,60,68 of ~71 | unchanged |
+
+### Acceptance status
+
+- [x] Prod, warm desktop: flight stall frames ≤ 2 — **median 1**; 5/8 runs ≤ 2, worst run 7 (base median ≈ 61). Flight composited (`compositeFailed: 0`).
+- [x] Prod, warm desktop: longest main-thread task ≤ 90 ms — 147 → 57 ms.
+- [ ] Prod, mobile 4×: flight stall frames clearly lower — **not met / not measurable this way.** Under `Emulation.setCPUThrottlingRate(4)` ~96 % of frames are DROPPED in both builds: the throttle slows the whole renderer, compositor thread included, so it cannot show a compositor-animation gain. Needs a real-device check. Mobile main-thread cost is dominated by viewer mount rendering (out of scope); the histogram/map deferrals don't apply there (InfoPanel closed by default).
+- [x] Hero behaviour unchanged to the eye; hero.cjs passes (see step 5).
+- [x] Before/after numbers recorded (this section).
+- [x] `pnpm lint`; unit tests 46/46.
+
+### Follow-ups (not done)
+
+- Real-device mobile check of the flight smoothness.
+- `transition-all` elements start main-thread `scrollbar-color` transitions during open (16 elements), and grid items' `transition-all` turns the hero's `visibility:hidden` into a transition.
+- `WebGLImageViewer.vue` calls `engine.getDebugInfo()` on every transform change even with debug off.
+- Local `.output` directory is locked by an unidentified process (sharp native modules) — delete after a reboot.
+- Docker (Linux) build check for `f18e9ae` still pending (needs Docker Desktop running).
 
 ## Out of scope
 

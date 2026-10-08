@@ -10,6 +10,7 @@
 | [Bulk photo upload](./bulk-upload.md) | 上传链路的可执行契约：批量状态端点、跨帧物化、共享轮询、虚拟列表 + 缩略图流水线、取消语义 | 动上传相关代码前；或任何要批量处理浏览器 `File` 对象的功能 |
 | [Dashboard photos list & exif layering](./dashboard-photos-list.md) | 照片列表的可执行契约：exif 分层（列表 slim + 详情全量）、表格虚拟化 + 手写固定列、可视区表态取数（修 431）、虚拟行缩略图 instant 禁令 | 动 `SLIM_EXIF_KEYS` / 照片列表三端点 / dashboard 照片表前；或新增读 exif 的列表/网格/地图消费方 |
 | [Dashboard queue list](./dashboard-queue-list.md) | 队列页的可执行契约：UTable 虚拟化不支持变高行 → 详情抽屉、detailTaskId 存 id 契约、高度约束链、驱动脚本 hasText 事故 | 动 queue.vue / queue 端点前；或想给任何虚拟化 UTable 加变高行（内联展开）时 |
+| [Hero transition](./hero-transition.md) | grid↔viewer hero 的可执行契约：飞行中判定 `heroMasking`、compositor transform 飞行、动画句柄所有权、motion-v `stop()` 仍 resolve 的坑、查看器打开性能的量测约定 | 动 `useHeroTransition` / HeroOverlay / 查看器挂载内容 / 打开时会滚动或改 body 的逻辑前；或要量查看器打开性能时 |
 
 ## Quick triggers
 
@@ -17,6 +18,8 @@
   （`File.size` 首次读取每个文件一次阻塞 stat；`name` / `lastModified` 免费）
 - 要给大列表加"通知重渲染"？→ 禁止 clone-to-notify，见 Gotcha 3
 - 要在 dev 里量前端性能？→ 先读"已知残留"，dev 的 Tailwind JIT 会多算 ~124ms
+- 要量查看器打开/hero 动画？→ 先读 [hero-transition.md](./hero-transition.md) 的量测约定（prod、先滚到可见再点、PipelineReporter 指标）
+- 要在查看器飞行期间做事（挂载、解码、滚动）？→ 用 `heroMasking` 推迟，见 [hero-transition.md](./hero-transition.md)
 - 要在列表/网格/地图里读某个 exif 字段？→ 先查 [dashboard-photos-list.md](./dashboard-photos-list.md)
   的 `SLIM_EXIF_KEYS` 白名单；不在白名单就走 `/api/photos/:id` 详情接口，别把字段塞回列表 exif
 - 给大表加"通知重渲染"或按 id 批量取数？→ 禁止全量 id 塞 query string（431），见 Gotcha 4

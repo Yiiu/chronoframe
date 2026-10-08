@@ -6,7 +6,7 @@ const BASE = process.argv[2]
 const CPU = +(process.argv[3] || 1)
 const MOBILE = process.argv[4] === 'mobile'
 const PROFILE = process.argv[5] === 'profile'
-const RUNS = 5
+const RUNS = +(process.env.RUNS || 5)
 
 const pct = (arr, p) => { const s = [...arr].sort((a, b) => a - b); return s.length ? s[Math.min(s.length - 1, Math.floor((p / 100) * s.length))] : 0 }
 
