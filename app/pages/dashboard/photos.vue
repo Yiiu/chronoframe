@@ -2281,7 +2281,6 @@ watch(isImagePreviewOpen, (open) => {
                   v-if="previewingPhoto"
                   :photo="previewingPhoto"
                   :index="0"
-                  :is-visible="true"
                   @open-viewer="openInNewTab(`/${previewingPhoto.id}`)"
                 />
               </div>

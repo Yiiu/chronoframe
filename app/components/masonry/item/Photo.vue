@@ -10,7 +10,6 @@ import { motion, useDomRef } from 'motion-v'
 interface Props {
   photo: Photo
   index: number
-  isVisible: boolean
 }
 
 const props = defineProps<Props>()
@@ -46,6 +45,15 @@ const { convertMovToMp4, getProcessingState } = useLivePhotoProcessor()
 
 const isTouching = ref(false)
 const touchCount = ref(0)
+// The Live Photo video (often several MB) is fetched only when the user asks
+// for playback: desktop hover or mobile long press. When that request lands
+// before the video is ready, this flag makes the load completion start
+// playback, as long as the hover / press is still active.
+let playWhenReady = false
+// A long press that started (or is waiting for) playback must not also open
+// the viewer on release.
+let longPressFired = false
+let isLivePhotoRequested = false
 const longPressTimer = ref<NodeJS.Timeout | null>(null)
 const initialTouchPos = ref<{ x: number; y: number } | null>(null)
 const isMobile = useMediaQuery('(max-width: 768px)')
@@ -112,23 +120,6 @@ watch(isHovering, (hovering) => {
   }
 })
 
-watch(
-  () => props.isVisible,
-  (visible) => {
-    // Client-only: this fires during setup on the server (albums page passes
-    // `:is-visible="true"`), which would run `convertMovToMp4` on the server
-    // — fetching MOV files into Nitro memory, throwing on
-    // `document.createElement('video')`, retrying 3x, and mutating the
-    // module-level processing cache across requests.
-    if (visible && import.meta.client) {
-      nextTick(() => {
-        processLivePhotoWhenVisible()
-      })
-    }
-  },
-  { immediate: true },
-)
-
 // Methods
 const handleImageLoad = () => {
   isLoading.value = false
@@ -150,13 +141,7 @@ const handleMouseEnter = async () => {
 
   if (!props.photo.isLivePhoto || !props.photo.livePhotoVideoUrl) return
 
-  // 如果视频已准备好，立即播放
-  if (videoBlob.value && videoBlobUrl.value && isVideoLoaded.value) {
-    playLivePhotoVideo()
-  } else if (!processingState.value?.isProcessing) {
-    // 如果视频还未处理，立即开始处理
-    processLivePhotoWhenVisible()
-  }
+  requestLivePhotoPlayback()
 }
 
 const handleMouseLeave = () => {
@@ -164,6 +149,7 @@ const handleMouseLeave = () => {
   if (isMobile.value) return
 
   isHovering.value = false
+  playWhenReady = false
   if (videoRef.value && !videoRef.value.paused) {
     videoRef.value.pause()
     videoRef.value.currentTime = 0
@@ -256,8 +242,14 @@ const handleVideoEnded = () => {
 
 // Mobile touch handlers for LivePhoto
 const handleTouchStart = (event: TouchEvent) => {
-  if (!isMobile.value || !props.photo.isLivePhoto || !videoBlobUrl.value) return
+  if (
+    !isMobile.value ||
+    !props.photo.isLivePhoto ||
+    !props.photo.livePhotoVideoUrl
+  )
+    return
 
+  longPressFired = false
   touchCount.value = event.touches.length
 
   // Only handle single finger touch to avoid conflicts with pinch-to-zoom and scrolling
@@ -271,7 +263,8 @@ const handleTouchStart = (event: TouchEvent) => {
       longPressTimer.value = setTimeout(() => {
         // Double check: only play if still single touch and touching
         if (isTouching.value && touchCount.value === 1) {
-          playLivePhotoVideo()
+          longPressFired = true
+          requestLivePhotoPlayback()
         }
       }, 350)
     }
@@ -315,6 +308,7 @@ const cancelLivePhotoTouch = () => {
   touchCount.value = 0
   isTouching.value = false
   initialTouchPos.value = null
+  playWhenReady = false
 
   // Clear the long press timer
   if (longPressTimer.value) {
@@ -343,8 +337,13 @@ const cancelLivePhotoTouch = () => {
 
 // Handle click events - prevent opening viewer when video is playing
 const handleClick = (event: Event) => {
-  // On mobile, if video is playing or user is touching, don't open the viewer
-  if (isMobile.value && (isVideoPlaying.value || isTouching.value)) {
+  // On mobile, if video is playing, the user is touching, or the touch was a
+  // Live Photo long press, don't open the viewer
+  if (
+    isMobile.value &&
+    (isVideoPlaying.value || isTouching.value || longPressFired)
+  ) {
+    longPressFired = false
     event.preventDefault()
     event.stopPropagation()
     return
@@ -374,14 +373,33 @@ const handleClick = (event: Event) => {
   emit('openViewer', props.index)
 }
 
-// 智能LivePhoto处理：基于可见性和用户行为
-const processLivePhotoWhenVisible = async () => {
-  if (
-    !props.photo.isLivePhoto ||
-    !props.photo.livePhotoVideoUrl ||
-    !props.isVisible
-  )
+// Play now if the video is ready; otherwise start loading it and play once
+// it arrives (if the hover / long press is still active by then).
+const requestLivePhotoPlayback = () => {
+  if (!props.photo.isLivePhoto || !props.photo.livePhotoVideoUrl) return
+
+  if (videoBlob.value && videoBlobUrl.value && isVideoLoaded.value) {
+    playLivePhotoVideo()
     return
+  }
+
+  playWhenReady = true
+  // Our own request (not the shared processing state) decides whether to
+  // start one: convertMovToMp4 joins an in-flight conversion of the same
+  // photo, and only a request started here resolves into playback.
+  if (!isLivePhotoRequested) {
+    isLivePhotoRequested = true
+    processLivePhoto().finally(() => {
+      isLivePhotoRequested = false
+    })
+  }
+}
+
+const isPlaybackStillWanted = () =>
+  isMobile.value ? isTouching.value : isHovering.value
+
+const processLivePhoto = async () => {
+  if (!props.photo.isLivePhoto || !props.photo.livePhotoVideoUrl) return
 
   try {
     // 使用优化的转换函数，支持重试和缓存
@@ -402,6 +420,14 @@ const processLivePhotoWhenVisible = async () => {
       // 预热视频元素以提高播放性能
       if (videoRef.value) {
         videoRef.value.load()
+      }
+
+      if (playWhenReady) {
+        playWhenReady = false
+        // The <video> mounts on the next render (v-if on videoBlobUrl).
+        nextTick(() => {
+          if (isPlaybackStillWanted()) playLivePhotoVideo()
+        })
       }
     }
   } catch (error) {

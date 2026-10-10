@@ -47,7 +47,6 @@ const slots = useSlots()
 const { currentPhotoIndex, isViewerOpen, heroActive } = storeToRefs(
   useViewerState(),
 )
-const { batchProcessLivePhotos } = useLivePhotoProcessor()
 const { enteredIds } = useGridMemory()
 
 const isMobile = useMediaQuery('(max-width: 768px)')
@@ -56,8 +55,6 @@ const masonryWrapper = ref<HTMLElement>()
 const headerRef = ref<HTMLElement>()
 const headerHeight = ref(0)
 const wallWidth = ref(0)
-const visiblePhotos = ref(new Set<number>())
-const processedBatch = ref(new Set<string>())
 
 const viewerList = computed(() => props.viewerPhotos ?? props.photos)
 
@@ -170,16 +167,12 @@ const visibleIndices = computed(() => {
 })
 
 watch(visibleIndices, (indices) => {
-  visiblePhotos.value = new Set(indices)
   emit(
     'visibleChange',
     indices
       .map((i) => props.photos[i])
       .filter((photo): photo is Photo => photo != null),
   )
-  nextTick(() => {
-    processVisibleLivePhotos()
-  })
 })
 
 // After the first real render, every first-screen photo counts as entered —
@@ -257,34 +250,6 @@ const headerStyle = computed(() => {
   }
   return { width: `${layout.value?.columnWidth ?? columnWidth.value}px` }
 })
-
-// Process LivePhotos for currently visible photos
-const processVisibleLivePhotos = async () => {
-  const livePhotosToProcess = Array.from(visiblePhotos.value)
-    .map((index) => props.photos[index])
-    .filter(
-      (photo): photo is Photo =>
-        photo != null &&
-        photo.isLivePhoto === 1 &&
-        Boolean(photo.livePhotoVideoUrl) &&
-        !processedBatch.value.has(photo.id),
-    )
-
-  if (livePhotosToProcess.length === 0) return
-
-  // Mark as processed to avoid reprocessing
-  livePhotosToProcess.forEach((photo) => {
-    processedBatch.value.add(photo.id)
-  })
-
-  // Start background processing
-  batchProcessLivePhotos(
-    livePhotosToProcess.map((photo) => ({
-      id: photo.id,
-      livePhotoVideoUrl: photo.livePhotoVideoUrl!,
-    })),
-  )
-}
 
 let scrollRafId = 0
 const handleScroll = () => {
@@ -386,7 +351,6 @@ watch(
         <MasonryItem
           :photo="photos[i]!"
           :index="i"
-          :is-visible="visiblePhotos.has(i)"
           :has-animated="false"
           :first-screen-items="firstScreenItems"
           @open-viewer="emit('openViewer', $event)"

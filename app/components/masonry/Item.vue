@@ -5,7 +5,6 @@ const props = withDefaults(
   defineProps<{
     photo: Photo
     index: number
-    isVisible: boolean
     hasAnimated: boolean
     firstScreenItems?: number
   }>(),
@@ -80,7 +79,6 @@ const itemVariants = {
     <MasonryItemPhoto
       :photo="photo"
       :index="index"
-      :is-visible="isVisible"
       @open-viewer="emit('openViewer', $event)"
     />
   </motion.div>
@@ -93,7 +91,6 @@ const itemVariants = {
     <MasonryItemPhoto
       :photo="photo"
       :index="index"
-      :is-visible="isVisible"
       @open-viewer="emit('openViewer', $event)"
     />
   </div>
