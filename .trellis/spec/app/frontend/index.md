@@ -11,9 +11,11 @@
 | [Dashboard photos list & exif layering](./dashboard-photos-list.md) | 照片列表的可执行契约：exif 分层（列表 slim + 详情全量）、表格虚拟化 + 手写固定列、可视区表态取数（修 431）、虚拟行缩略图 instant 禁令 | 动 `SLIM_EXIF_KEYS` / 照片列表三端点 / dashboard 照片表前；或新增读 exif 的列表/网格/地图消费方 |
 | [Dashboard queue list](./dashboard-queue-list.md) | 队列页的可执行契约：UTable 虚拟化不支持变高行 → 详情抽屉、detailTaskId 存 id 契约、高度约束链、驱动脚本 hasText 事故 | 动 queue.vue / queue 端点前；或想给任何虚拟化 UTable 加变高行（内联展开）时 |
 | [Hero transition](./hero-transition.md) | grid↔viewer hero 的可执行契约：飞行中判定 `heroMasking`、compositor transform 飞行、动画句柄所有权、motion-v `stop()` 仍 resolve 的坑、查看器打开性能的量测约定 | 动 `useHeroTransition` / HeroOverlay / 查看器挂载内容 / 打开时会滚动或改 body 的逻辑前；或要量查看器打开性能时 |
+| [Page weight](./page-weight.md) | 首页下载预算契约：地图块不得进首页（无 manualChunks、懒小地图、manifest 去 prefetch、/globe 交互预取）、Live Photo 视频按意图加载、缩略图 q80 | 动 rollupOptions / build:manifest、在 app.vue 可达处用地图组件、加 /globe 链接、改 Live Photo 加载或缩略图编码前 |
 
 ## Quick triggers
 
+- 要在查看器/页头等常驻组件里用地图或链接到 /globe？→ 先读 [page-weight.md](./page-weight.md)，否则首页会多下 ~1 MB
 - 要批量读 `File` 的属性？→ 先看 [bulk-upload.md](./bulk-upload.md) 的 Gotcha 1
   （`File.size` 首次读取每个文件一次阻塞 stat；`name` / `lastModified` 免费）
 - 要给大列表加"通知重渲染"？→ 禁止 clone-to-notify，见 Gotcha 3

@@ -1,0 +1,11 @@
+const { chromium } = require('playwright-core')
+;(async () => {
+  const b = await chromium.launch({ executablePath: 'C:/Users/a1103/AppData/Local/ms-playwright/chromium-1223/chrome-win64/chrome.exe' })
+  const p = await b.newPage({ viewport: { width: 1440, height: 900 } })
+  const errs = []; p.on('pageerror', (e) => errs.push(e.message))
+  await p.goto(process.argv[2] + '/', { waitUntil: 'load' }); await p.waitForTimeout(2000)
+  await p.locator('a[href="/globe"]').first().click(); await p.waitForTimeout(8000)
+  const map = await p.evaluate(() => !!document.querySelector('.maplibregl-canvas, .mapboxgl-canvas'))
+  console.log(map && !errs.length ? 'PASS' : 'FAIL', 'globe via header link: url=', p.url(), 'canvas=', map, 'errors=', errs)
+  await b.close()
+})()
