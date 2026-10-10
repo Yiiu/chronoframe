@@ -11,6 +11,10 @@ import type {
 } from '~~/server/utils/db'
 import { compressUint8Array } from '~~/shared/utils/u8array'
 import {
+  resolvePipelineTaskTimeoutMs,
+  withTimeout,
+} from '~~/server/utils/task-timeout'
+import {
   preprocessImageWithJpegUpload,
   processImageMetadataAndSharp,
 } from '../image/processor'
@@ -823,22 +827,28 @@ export class QueueManager {
       try {
         const { type } = task.payload
 
-        switch (type) {
-          case 'live-photo-video':
-            await this.processors.livePhotoDetect(task)
-            break
-          case 'photo':
-            await this.processors.photo(task)
-            break
-          case 'photo-reverse-geocoding':
-            await this.processors.reverseGeocoding(task)
-            break
-          case 'photo-erase-location':
-            await this.processors.eraseLocation(task)
-            break
-          default:
-            throw new Error(`Unknown task type: ${type}`)
+        const run = async () => {
+          switch (type) {
+            case 'live-photo-video':
+              return await this.processors.livePhotoDetect(task)
+            case 'photo':
+              return await this.processors.photo(task)
+            case 'photo-reverse-geocoding':
+              return await this.processors.reverseGeocoding(task)
+            case 'photo-erase-location':
+              return await this.processors.eraseLocation(task)
+            default:
+              throw new Error(`Unknown task type: ${type}`)
+          }
         }
+
+        // 总超时兜底：任何一步挂起（如 S3 请求无响应）都不能永久占住 worker
+        const timeoutMs = resolvePipelineTaskTimeoutMs()
+        await withTimeout(
+          run(),
+          timeoutMs,
+          `Task ${task.id} timed out after ${timeoutMs}ms`,
+        )
 
         await this.markTaskCompleted(task.id)
         this.processedCount++

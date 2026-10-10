@@ -34,6 +34,15 @@ const createClient = (config: S3StorageConfig): S3Client => {
       accessKeyId,
       secretAccessKey,
     },
+    // SDK 默认不设超时：连接半开时请求会永久挂起，占死队列 worker
+    requestHandler: {
+      connectionTimeout: 10_000,
+      // 等待响应头的上限；不加 throwOnRequestTimeout 只会打 warn 不会报错
+      requestTimeout: 120_000,
+      throwOnRequestTimeout: true,
+      // 传输中途无数据的空闲上限（覆盖下载 body 时卡住）
+      socketTimeout: 60_000,
+    },
   }
 
   return new S3Client(clientConfig)
