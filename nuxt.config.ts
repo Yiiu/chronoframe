@@ -137,6 +137,23 @@ export default defineNuxtConfig({
     },
   },
 
+  hooks: {
+    // Lazy components still get a <link rel="prefetch"> on every page via the
+    // entry's dynamicImports. Drop the mini map from that list: it pulls in
+    // the ~800 KB (gzip) maplibre chunk, which visitors who never open a
+    // geotagged photo should not download. Resource hints only; the dynamic
+    // import itself is unaffected.
+    'build:manifest'(manifest) {
+      const noPrefetch = new Set(['components/photo/MiniMap.vue'])
+      for (const chunk of Object.values(manifest)) {
+        if (!chunk.isEntry) continue
+        chunk.dynamicImports = chunk.dynamicImports?.filter(
+          (src) => !noPrefetch.has(src),
+        )
+      }
+    },
+  },
+
   vite: {
     optimizeDeps: {
       include: [
@@ -175,25 +192,10 @@ export default defineNuxtConfig({
     },
     build: {
       sourcemap: false,
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (!id.includes('node_modules')) {
-              return
-            }
-
-            if (
-              id.includes('/mapbox-gl/') ||
-              id.includes('/maplibre-gl/') ||
-              id.includes('/@indoorequal/vue-maplibre-gl/') ||
-              id.includes('/nuxt-mapbox/') ||
-              id.includes('/nuxt-maplibre/')
-            ) {
-              return 'vendor-map'
-            }
-          },
-        },
-      },
+      // No manualChunks: a manual 'vendor-map' chunk also swallowed every
+      // shared dependency of the map libraries (vue, vueuse, ...), so the app
+      // entry imported it and every page preloaded ~1 MB of maplibre. The map
+      // components are lazy-loaded instead (LazyPhotoMiniMap, /globe route).
       commonjsOptions: {
         include: [/maplibre-gl/, /node_modules/],
         transformMixedEsModules: true,

@@ -90,6 +90,9 @@ const totalSelectedFilters = computed(() => {
     <div class="flex shrink-0 items-center gap-0.5 text-white">
       <!-- 桌面端全量 -->
       <div class="hidden items-center gap-0.5 md:flex">
+        <!-- Globe links prefetch on interaction only: the globe page pulls in
+             the ~800 KB (gzip) maplibre chunk, which a visible-link prefetch
+             would download on every home page view. -->
         <UTooltip :text="$t('ui.action.globe.tooltip')">
           <UButton
             variant="ghost"
@@ -98,6 +101,7 @@ const totalSelectedFilters = computed(() => {
             icon="tabler:map-pin-2"
             size="sm"
             to="/globe"
+            prefetch-on="interaction"
           />
         </UTooltip>
         <UTooltip :text="$t('title.albums')">
@@ -199,6 +203,7 @@ const totalSelectedFilters = computed(() => {
                 size="sm"
                 class="justify-start"
                 to="/globe"
+                prefetch-on="interaction"
                 :label="$t('ui.action.globe.label')"
               />
               <UButton

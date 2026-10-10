@@ -719,7 +719,10 @@ const onAlbumClick = (albumId: number) => {
         <h4 class="text-sm font-medium text-white uppercase tracking-wide">
           {{ $t('exif.sections.location') }}
         </h4>
-        <PhotoMiniMap
+        <!-- Lazy: keeps maplibre (~1 MB gzipped) out of the app entry; the
+             viewer is mounted from app.vue, so a static import here would
+             preload the map bundle on every page. -->
+        <LazyPhotoMiniMap
           :photo="currentPhoto"
           :latitude="gpsCoordinates?.latitude"
           :longitude="gpsCoordinates?.longitude"
