@@ -2,6 +2,8 @@ import sharp from 'sharp'
 import { generateBlurHash } from './blurhash'
 import { withRetry, RetryPresets } from '../../utils/retry'
 
+export const THUMBNAIL_WEBP_QUALITY = 80
+
 export const generateThumbnailAndHash = async (
   buffer: Buffer,
   logger?: Logger[keyof Logger],
@@ -10,9 +12,10 @@ export const generateThumbnailAndHash = async (
     async () => {
       const sharpInst = sharp(buffer).rotate()
 
-      // 根据文件大小调整缩略图质量
-      const fileSizeMB = buffer.length / (1024 * 1024)
-      const quality = fileSizeMB > 5 ? 85 : 100
+      // Grid thumbnails are shown at ~300 CSS px; quality 100 made each one
+      // 140-230 KB for no visible gain. 80 roughly halves the size. The
+      // viewer upgrades to the original, so this only affects the wall.
+      const quality = THUMBNAIL_WEBP_QUALITY
 
       const thumbnailBuffer = await sharpInst
         .resize(600, null, {
